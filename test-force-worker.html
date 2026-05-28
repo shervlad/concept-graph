@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Force Worker Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
+  canvas { display: block; }
+
+  #stats {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 10; font-size: 13px; color: #888; display: flex; gap: 24px;
+    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 8px 20px; backdrop-filter: blur(12px);
+  }
+  #stats span { color: #6af; font-family: monospace; }
+
+  #controls {
+    position: fixed; top: 16px; right: 16px; width: 280px;
+    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 16px; backdrop-filter: blur(12px);
+    z-index: 10; font-size: 13px;
+  }
+  #controls h2 { font-size: 14px; color: #fff; margin-bottom: 12px; letter-spacing: 0.5px; }
+  .control-group { margin-bottom: 14px; }
+  .control-group label {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px; color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .control-group label span { color: #6af; font-family: monospace; font-size: 12px; }
+  input[type="range"] {
+    width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(255,255,255,0.1); border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    background: #6af; border-radius: 50%; cursor: pointer;
+  }
+  .separator { border-top: 1px solid rgba(255,255,255,0.06); margin: 14px 0; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .btn {
+    background: rgba(102,170,255,0.15); border: 1px solid rgba(102,170,255,0.3);
+    color: #6af; border-radius: 6px; padding: 6px 12px; font-size: 11px;
+    cursor: pointer; flex: 1; text-align: center; min-width: 80px;
+  }
+  .btn:hover { background: rgba(102,170,255,0.25); }
+
+  #legend {
+    position: fixed; bottom: 16px; left: 16px;
+    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 10px 14px; z-index: 10; font-size: 12px;
+    backdrop-filter: blur(12px);
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  #pin-info {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 10; font-size: 12px; color: #ff0;
+    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,200,0,0.2);
+    border-radius: 8px; padding: 6px 14px; backdrop-filter: blur(12px);
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="stats">
+  FPS: <span id="fps">0</span> &nbsp;
+  Nodes: <span id="node-count">0</span> &nbsp;
+  Settled: <span id="settled">No</span>
+</div>
+
+<div id="controls">
+  <h2>Physics</h2>
+
+  <div class="control-group">
+    <label>Charge <span id="v-charge">-120</span></label>
+    <input type="range" id="s-charge" min="-400" max="-10" value="-120" step="1">
+  </div>
+  <div class="control-group">
+    <label>Link Distance <span id="v-linkDistance">80</span></label>
+    <input type="range" id="s-linkDistance" min="20" max="300" value="80" step="1">
+  </div>
+  <div class="control-group">
+    <label>Link Strength <span id="v-linkStrength">0.30</span></label>
+    <input type="range" id="s-linkStrength" min="0.01" max="1.0" value="0.3" step="0.01">
+  </div>
+  <div class="control-group">
+    <label>Time Pull <span id="v-timePull">0.15</span></label>
+    <input type="range" id="s-timePull" min="0" max="0.5" value="0.15" step="0.01">
+  </div>
+  <div class="control-group">
+    <label>Cluster Gravity <span id="v-clusterGravity">0.08</span></label>
+    <input type="range" id="s-clusterGravity" min="0" max="0.3" value="0.08" step="0.01">
+  </div>
+  <div class="control-group">
+    <label>Velocity Decay <span id="v-velocityDecay">0.40</span></label>
+    <input type="range" id="s-velocityDecay" min="0.1" max="0.9" value="0.4" step="0.01">
+  </div>
+  <div class="control-group">
+    <label>Collision <span id="v-collisionMultiplier">1.20</span></label>
+    <input type="range" id="s-collisionMultiplier" min="0.5" max="3.0" value="1.2" step="0.1">
+  </div>
+
+  <div class="separator"></div>
+
+  <div class="btn-row">
+    <button class="btn" id="btn-add">Add 50 Nodes</button>
+    <button class="btn" id="btn-reheat">Reheat</button>
+  </div>
+  <div class="btn-row">
+    <button class="btn" id="btn-pin">Pin Random</button>
+    <button class="btn" id="btn-unpin">Unpin All</button>
+  </div>
+</div>
+
+<div id="legend"></div>
+<div id="pin-info"></div>
+<canvas id="canvas"></canvas>
+
+<script>
+const DOMAINS = ["math", "physics", "biology", "computing", "philosophy"];
+const DOMAIN_COLORS = {
+  math: "#6af", physics: "#f6a", biology: "#6fa",
+  computing: "#fa6", philosophy: "#a6f"
+};
+
+// Legend
+const legendEl = document.getElementById("legend");
+legendEl.innerHTML = DOMAINS.map(d =>
+  `<div class="legend-item"><div class="legend-dot" style="background:${DOMAIN_COLORS[d]}"></div>${d}</div>`
+).join("");
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let W, H;
+function resize() {
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+}
+resize();
+window.addEventListener("resize", () => {
+  resize();
+  if (typeof worker !== "undefined") {
+    worker.postMessage({ type: "resize", width: W, height: H });
+  }
+});
+
+let allNodes = [];
+let allEdges = [];
+let positions = null;
+let settled = false;
+let pinnedIds = new Set();
+let nextId = 0;
+
+let camX = 0, camY = 0, zoom = 1;
+let dragging = false, dragStartX = 0, dragStartY = 0, camStartX = 0, camStartY = 0;
+
+function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+function randFloat(a, b) { return a + Math.random() * (b - a); }
+function randPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function generateNodes(count) {
+  const newNodes = [];
+  for (let i = 0; i < count; i++) {
+    newNodes.push({
+      id: "n" + nextId++,
+      domain: randPick(DOMAINS),
+      year: randInt(-500, 2020),
+      radius: randInt(15, 40),
+      x: randFloat(100, W - 100),
+      y: randFloat(100, H - 100)
+    });
+  }
+  return newNodes;
+}
+
+function generateEdges(newNodes, existingNodes, count) {
+  const all = existingNodes.concat(newNodes);
+  if (all.length < 2) return [];
+  const newEdges = [];
+  for (let i = 0; i < count; i++) {
+    const a = randPick(all);
+    let b = randPick(all);
+    let tries = 0;
+    while (b.id === a.id && tries++ < 10) b = randPick(all);
+    if (b.id !== a.id) {
+      newEdges.push({ source: a.id, target: b.id, weight: randFloat(0.2, 1.0) });
+    }
+  }
+  return newEdges;
+}
+
+const initNodes = generateNodes(200);
+const initEdges = generateEdges(initNodes, [], 300);
+allNodes = initNodes.slice();
+allEdges = initEdges.slice();
+
+const worker = new Worker("force-worker.js");
+
+worker.onerror = function(e) {
+  console.error("Worker error:", e.message);
+  document.getElementById("stats").style.borderColor = "rgba(255,80,80,0.5)";
+  document.getElementById("fps").textContent = "ERR";
+  document.getElementById("fps").style.color = "#f66";
+};
+
+worker.postMessage({
+  type: "init",
+  nodes: initNodes,
+  edges: initEdges,
+  params: {
+    charge: -120, linkDistance: 80, linkStrength: 0.3,
+    timePull: 0.15, clusterGravity: 0.08,
+    velocityDecay: 0.4, collisionMultiplier: 1.2
+  },
+  width: W, height: H
+});
+
+worker.onmessage = function(e) {
+  const msg = e.data;
+  if (msg.type === "tick") {
+    positions = msg.positions;
+    settled = false;
+    document.getElementById("settled").textContent = "No";
+  } else if (msg.type === "settled") {
+    settled = true;
+    document.getElementById("settled").textContent = "Yes";
+  }
+};
+
+// Edge index: store source/target as node array indices for fast position lookup
+let edgeIndices = [];
+function rebuildEdgeIndices() {
+  const idMap = {};
+  for (let i = 0; i < allNodes.length; i++) idMap[allNodes[i].id] = i;
+  edgeIndices = [];
+  for (const e of allEdges) {
+    const si = idMap[e.source];
+    const ti = idMap[e.target];
+    if (si !== undefined && ti !== undefined) {
+      edgeIndices.push({ si, ti, weight: e.weight });
+    }
+  }
+}
+rebuildEdgeIndices();
+
+// Sliders
+const sliderDefs = [
+  { key: "charge", integer: true },
+  { key: "linkDistance", integer: true },
+  { key: "linkStrength", integer: false },
+  { key: "timePull", integer: false },
+  { key: "clusterGravity", integer: false },
+  { key: "velocityDecay", integer: false },
+  { key: "collisionMultiplier", integer: false }
+];
+
+for (const def of sliderDefs) {
+  const slider = document.getElementById("s-" + def.key);
+  const display = document.getElementById("v-" + def.key);
+  slider.addEventListener("input", () => {
+    const val = def.integer ? parseInt(slider.value) : parseFloat(slider.value);
+    display.textContent = def.integer ? val : val.toFixed(2);
+    const msg = { type: "params" };
+    msg[def.key] = val;
+    worker.postMessage(msg);
+  });
+}
+
+// Buttons
+document.getElementById("btn-add").addEventListener("click", () => {
+  const newNodes = generateNodes(50);
+  const newEdges = generateEdges(newNodes, allNodes, 75);
+  allNodes = allNodes.concat(newNodes);
+  allEdges = allEdges.concat(newEdges);
+  rebuildEdgeIndices();
+  worker.postMessage({ type: "add", nodes: newNodes, edges: newEdges });
+  document.getElementById("node-count").textContent = allNodes.length;
+});
+
+document.getElementById("btn-reheat").addEventListener("click", () => {
+  worker.postMessage({ type: "reheat" });
+});
+
+const pinInfoEl = document.getElementById("pin-info");
+function updatePinInfo() {
+  if (pinnedIds.size === 0) {
+    pinInfoEl.style.display = "none";
+  } else {
+    pinInfoEl.style.display = "block";
+    pinInfoEl.textContent = "Pinned: " + [...pinnedIds].join(", ");
+  }
+}
+
+document.getElementById("btn-pin").addEventListener("click", () => {
+  if (!positions || allNodes.length === 0) return;
+  const idx = randInt(0, allNodes.length - 1);
+  const node = allNodes[idx];
+  const x = positions[idx * 2];
+  const y = positions[idx * 2 + 1];
+  pinnedIds.add(node.id);
+  worker.postMessage({ type: "pin", id: node.id, x, y });
+  updatePinInfo();
+});
+
+document.getElementById("btn-unpin").addEventListener("click", () => {
+  for (const id of pinnedIds) {
+    worker.postMessage({ type: "unpin", id });
+  }
+  pinnedIds.clear();
+  updatePinInfo();
+});
+
+// Pan & Zoom
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  const mx = e.clientX, my = e.clientY;
+  camX = mx - (mx - camX) * factor;
+  camY = my - (my - camY) * factor;
+  zoom *= factor;
+}, { passive: false });
+
+canvas.addEventListener("mousedown", (e) => {
+  dragging = true;
+  dragStartX = e.clientX; dragStartY = e.clientY;
+  camStartX = camX; camStartY = camY;
+});
+canvas.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  camX = camStartX + (e.clientX - dragStartX);
+  camY = camStartY + (e.clientY - dragStartY);
+});
+canvas.addEventListener("mouseup", () => { dragging = false; });
+canvas.addEventListener("mouseleave", () => { dragging = false; });
+
+// FPS
+let frameCount = 0, lastFpsTime = performance.now();
+document.getElementById("node-count").textContent = allNodes.length;
+
+function render() {
+  requestAnimationFrame(render);
+
+  ctx.clearRect(0, 0, W, H);
+  if (!positions) {
+    worker.postMessage({ type: "frame" });
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(camX, camY);
+  ctx.scale(zoom, zoom);
+
+  // Draw edges — batched by alpha bucket
+  ctx.lineWidth = 1 / zoom;
+  const EDGE_BUCKETS = 4;
+  for (let b = 0; b < EDGE_BUCKETS; b++) {
+    const alphaLo = b / EDGE_BUCKETS;
+    const alphaHi = (b + 1) / EDGE_BUCKETS;
+    const alpha = 0.08 + ((alphaLo + alphaHi) / 2) * 0.12;
+    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.beginPath();
+    for (const e of edgeIndices) {
+      if (e.weight < alphaLo || (b < EDGE_BUCKETS - 1 && e.weight >= alphaHi)) continue;
+      ctx.moveTo(positions[e.si * 2], positions[e.si * 2 + 1]);
+      ctx.lineTo(positions[e.ti * 2], positions[e.ti * 2 + 1]);
+    }
+    ctx.stroke();
+  }
+
+  // Draw nodes
+  for (let i = 0; i < allNodes.length; i++) {
+    const node = allNodes[i];
+    const x = positions[i * 2], y = positions[i * 2 + 1];
+    if (x === undefined) continue;
+
+    const color = DOMAIN_COLORS[node.domain] || "#888";
+    const pinned = pinnedIds.has(node.id);
+
+    ctx.beginPath();
+    ctx.arc(x, y, node.radius, 0, Math.PI * 2);
+    ctx.fillStyle = pinned ? "#fff" : color;
+    ctx.globalAlpha = pinned ? 0.9 : 0.7;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if (pinned) {
+      ctx.strokeStyle = "#ff0";
+      ctx.lineWidth = 2 / zoom;
+      ctx.stroke();
+    }
+  }
+
+  // Draw labels (separate pass to avoid state thrashing)
+  const fontSize = Math.max(8, 11 / zoom);
+  ctx.font = `${fontSize}px monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 3 / zoom;
+  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+  ctx.fillStyle = "#fff";
+  for (let i = 0; i < allNodes.length; i++) {
+    const x = positions[i * 2], y = positions[i * 2 + 1];
+    if (x === undefined) continue;
+    ctx.strokeText(allNodes[i].id, x, y);
+    ctx.fillText(allNodes[i].id, x, y);
+  }
+
+  ctx.restore();
+
+  // Send ack to worker
+  worker.postMessage({ type: "frame" });
+
+  // FPS
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById("fps").textContent = frameCount;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+}
+
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

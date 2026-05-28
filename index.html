@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tree of Knowledge</title>
+<script src="https://unpkg.com/deck.gl@9.1.4/dist.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0a0a0f; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
 
-  #canvas-container { position: absolute; inset: 0; }
-  canvas { display: block; }
+  #deck-container { position: absolute; inset: 0; }
 
   #controls {
     position: fixed; top: 16px; right: 16px; width: 280px;
@@ -46,675 +46,949 @@
   #tooltip .tt-domain { font-size: 11px; color: #999; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
   #tooltip .tt-desc { font-size: 12px; color: #bbb; margin-top: 6px; line-height: 1.4; }
 
-  #timeline {
-    position: fixed; bottom: 0; left: 0; right: 0; height: 40px;
-    background: rgba(10,10,20,0.8); border-top: 1px solid rgba(255,255,255,0.06);
-    z-index: 10; display: flex; align-items: center; padding: 0 20px;
-  }
-  .era-label {
-    position: absolute; top: 6px; font-size: 10px; color: #666;
-    text-transform: uppercase; letter-spacing: 0.5px; transform: translateX(-50%);
-  }
-
-  #legend {
-    position: fixed; bottom: 56px; left: 16px;
-    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px; padding: 12px 16px; z-index: 10; font-size: 12px;
-    backdrop-filter: blur(12px);
-  }
-  .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
-
   #search {
     position: fixed; top: 16px; left: 16px; z-index: 10;
   }
-  #search input {
+  #search-input {
     background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.12);
     border-radius: 8px; padding: 8px 14px; color: #fff; font-size: 13px;
     width: 240px; outline: none; backdrop-filter: blur(12px);
   }
-  #search input::placeholder { color: #555; }
-  #search input:focus { border-color: rgba(102,170,255,0.4); }
+  #search-input::placeholder { color: #555; }
+  #search-input:focus { border-color: rgba(102,170,255,0.4); }
 
-  #info-bar {
+  #status-bar {
     position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
     z-index: 10; font-size: 12px; color: #555; text-align: center;
+    display: flex; gap: 16px; align-items: center;
+  }
+  #status-msg {
+    position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+    z-index: 10; font-size: 12px; color: #6af; text-align: center;
+    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px; padding: 6px 14px; display: none;
+    backdrop-filter: blur(8px); max-width: 500px;
+  }
+  #status-msg.warn { color: #fa5; }
+  #status-msg.error { color: #f55; }
+
+  #help-text {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 10; font-size: 11px; color: #444; text-align: center;
   }
 
   .btn {
     background: rgba(102,170,255,0.15); border: 1px solid rgba(102,170,255,0.3);
-    color: #6af; border-radius: 6px; padding: 4px 10px; font-size: 11px;
-    cursor: pointer; margin-top: 8px;
+    color: #6af; border-radius: 6px; padding: 6px 12px; font-size: 12px;
+    cursor: pointer; transition: background 0.15s;
   }
   .btn:hover { background: rgba(102,170,255,0.25); }
+  .btn.active { background: rgba(255,100,100,0.2); border-color: rgba(255,100,100,0.4); color: #f88; }
 
-  #domain-toggles { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-  .domain-toggle {
-    font-size: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer;
-    border: 1px solid; opacity: 1; transition: opacity 0.2s;
+  select, input[type="text"], input[type="number"] {
+    background: rgba(15,15,25,0.8); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px; padding: 5px 8px; color: #fff; font-size: 12px;
+    outline: none; width: 100%;
   }
-  .domain-toggle.off { opacity: 0.3; }
+  select:focus, input[type="text"]:focus, input[type="number"]:focus {
+    border-color: rgba(102,170,255,0.4);
+  }
+  select option { background: #1a1a2e; }
+
+  .checkbox-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; color: #999;
+  }
+  .checkbox-row input[type="checkbox"] { accent-color: #6af; }
+
+  input[type="file"] { font-size: 11px; color: #999; margin-top: 6px; }
+
+  #controls::-webkit-scrollbar { width: 4px; }
+  #controls::-webkit-scrollbar-track { background: transparent; }
+  #controls::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 </style>
 </head>
 <body>
 
-<div id="canvas-container"><canvas id="graph"></canvas></div>
+<div id="deck-container"></div>
+<div id="tooltip"></div>
 
-<div id="search"><input type="text" placeholder="Search concepts..." id="search-input"></div>
+<div id="search">
+  <input type="text" placeholder="Search concepts..." id="search-input">
+</div>
 
-<div id="info-bar">Scroll to zoom &middot; Drag to pan &middot; Click a node to pin &middot; Double-click to unpin</div>
+<div id="status-bar">
+  <span id="status-text">Showing 0 / 0 concepts &middot; 0 edges</span>
+  <span id="fps-counter">FPS: --</span>
+  <span id="settled-indicator"></span>
+</div>
 
 <div id="controls">
   <h2>Physics</h2>
   <div class="control-group">
-    <label>Charge Strength <span id="v-charge">-120</span></label>
-    <input type="range" id="charge" min="-400" max="-10" value="-120" step="5">
+    <label>Charge <span id="v-charge">-120</span></label>
+    <input type="range" id="charge" min="-400" max="-10" step="5" value="-120">
   </div>
   <div class="control-group">
     <label>Link Distance <span id="v-linkdist">80</span></label>
-    <input type="range" id="linkdist" min="20" max="300" value="80" step="5">
+    <input type="range" id="linkdist" min="20" max="300" step="5" value="80">
   </div>
   <div class="control-group">
     <label>Link Strength <span id="v-linkstr">0.3</span></label>
-    <input type="range" id="linkstr" min="0.01" max="1" value="0.3" step="0.01">
+    <input type="range" id="linkstr" min="0.01" max="1" step="0.01" value="0.3">
   </div>
   <div class="control-group">
-    <label>Time-axis Pull <span id="v-timepull">0.15</span></label>
-    <input type="range" id="timepull" min="0" max="0.5" value="0.15" step="0.01">
+    <label>Time Pull <span id="v-timepull">0.15</span></label>
+    <input type="range" id="timepull" min="0" max="0.5" step="0.01" value="0.15">
   </div>
   <div class="control-group">
     <label>Cluster Gravity <span id="v-cluster">0.08</span></label>
-    <input type="range" id="cluster" min="0" max="0.3" value="0.08" step="0.01">
+    <input type="range" id="cluster" min="0" max="0.3" step="0.01" value="0.08">
   </div>
   <div class="control-group">
     <label>Velocity Decay <span id="v-decay">0.4</span></label>
-    <input type="range" id="decay" min="0.1" max="0.9" value="0.4" step="0.02">
+    <input type="range" id="decay" min="0.1" max="0.9" step="0.02" value="0.4">
   </div>
   <div class="control-group">
-    <label>Collision Radius <span id="v-collision">1.2</span></label>
-    <input type="range" id="collision" min="0.5" max="3" value="1.2" step="0.1">
+    <label>Collision <span id="v-collision">1.2</span></label>
+    <input type="range" id="collision" min="0.5" max="3" step="0.1" value="1.2">
   </div>
+
   <div class="separator"></div>
   <h2>Display</h2>
   <div class="control-group">
-    <label>Label Zoom Threshold <span id="v-labelzoom">0.6</span></label>
-    <input type="range" id="labelzoom" min="0.1" max="2" value="0.6" step="0.05">
+    <label>Render Budget <span id="v-budget">500</span></label>
+    <input type="range" id="budget" min="50" max="5000" step="50" value="500">
+  </div>
+  <div class="control-group">
+    <label>Label Zoom <span id="v-labelzoom">-0.5</span></label>
+    <input type="range" id="labelzoom" min="-2" max="2" step="0.1" value="-0.5">
   </div>
   <div class="control-group">
     <label>Edge Opacity <span id="v-edgeopacity">0.15</span></label>
-    <input type="range" id="edgeopacity" min="0" max="0.6" value="0.15" step="0.01">
+    <input type="range" id="edgeopacity" min="0" max="1" step="0.01" value="0.15">
+  </div>
+
+  <div class="separator"></div>
+  <h2>Expansion</h2>
+  <div class="control-group">
+    <label>Seed Concept</label>
+    <input type="text" id="seed-input" placeholder="e.g. mathematics">
   </div>
   <div class="control-group">
-    <label>Hull Opacity <span id="v-hullopacity">0.06</span></label>
-    <input type="range" id="hullopacity" min="0" max="0.2" value="0.06" step="0.005">
+    <label>Backend</label>
+    <select id="backend-select"></select>
   </div>
+  <div class="control-group">
+    <label>Rounds <span style="font-size:10px;color:#666">(0 = unlimited)</span></label>
+    <input type="number" id="rounds-input" value="3" min="0" max="100">
+  </div>
+  <div style="margin-top: 8px;">
+    <button class="btn" id="expand-btn" onclick="startExpansion()">Start</button>
+  </div>
+
   <div class="separator"></div>
-  <h2>Domains</h2>
-  <div id="domain-toggles"></div>
+  <h2>Clusters</h2>
+  <button class="btn" onclick="nameClustersByLLM()">Name Clusters</button>
+  <div class="checkbox-row">
+    <input type="checkbox" id="auto-name-toggle">
+    <label for="auto-name-toggle">Auto-name on pan/zoom</label>
+  </div>
+
   <div class="separator"></div>
-  <button class="btn" id="btn-reheat">Reheat Simulation</button>
-  <button class="btn" id="btn-reset">Reset View</button>
+  <h2>Import</h2>
+  <input type="file" id="import-file" accept=".json" onchange="importJSON()">
 </div>
 
-<div id="tooltip">
-  <div class="tt-name"></div>
-  <div class="tt-year"></div>
-  <div class="tt-domain"></div>
-  <div class="tt-desc"></div>
-</div>
+<div id="status-msg"></div>
 
-<div id="legend"></div>
-<div id="timeline"></div>
+<div id="help-text">
+  Scroll to zoom &middot; Drag to pan &middot; Click to pin &middot; Double-click to unpin
+</div>
 
 <script>
-const DATA_URL = 'knowledge.json';
-
-let DOMAINS = {};
+// ── State ──────────────────────────────────────────────────
 let nodes = [];
-let linkObjs = [];
-let nodeMap = {};
-let connectionCount = {};
-let maxConn = 1;
-let domainList = [];
-let domainCenterY = {};
-let domainVisible = {};
+let edges = [];
+let nodeIndex = {};
+let domains = {};
 
-const canvas = document.getElementById('graph');
-const ctx = canvas.getContext('2d');
-let W, H, dpr;
+let visibleNodes = [];
+let visibleEdges = [];
+let visibleNodeIndices = [];
+let clusterLabels = [];
 
-function resize() {
-  dpr = window.devicePixelRatio || 1;
-  W = window.innerWidth; H = window.innerHeight;
-  canvas.width = W * dpr; canvas.height = H * dpr;
-  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-window.addEventListener('resize', resize);
-resize();
-
-let transform = { x: 0, y: 0, k: 1 };
-
-function screenToWorld(sx, sy) {
-  return { x: (sx - transform.x) / transform.k, y: (sy - transform.y) / transform.k };
-}
-function worldToScreen(wx, wy) {
-  return { x: wx * transform.k + transform.x, y: wy * transform.k + transform.y };
-}
-
-const params = {
-  charge: -120, linkdist: 80, linkstr: 0.3, timepull: 0.15,
-  cluster: 0.08, decay: 0.4, collision: 1.2,
-  labelzoom: 0.6, edgeopacity: 0.15, hullopacity: 0.06,
+let currentViewState = {
+  target: [960, 540, 0],
+  zoom: 0,
+  minZoom: -4,
+  maxZoom: 6
 };
 
-function bindSlider(id, key) {
-  const el = document.getElementById(id);
-  const vEl = document.getElementById('v-' + id);
-  el.addEventListener('input', () => {
-    params[key] = parseFloat(el.value);
-    vEl.textContent = el.value;
-    alpha = 1;
-  });
-}
-['charge','linkdist','linkstr','timepull','cluster','decay','collision','labelzoom','edgeopacity','hullopacity']
-  .forEach(k => bindSlider(k, k));
+let tickCounter = 0;
+let pinVersion = 0;
+let settled = false;
+let renderBudget = 500;
+let labelZoomThreshold = -0.5;
+let edgeOpacity = 0.15;
+let expansionRunning = false;
+let searchQuery = '';
+let searchResults = new Set();
+let autoNameEnabled = false;
+let autoNameTimer = null;
 
-document.getElementById('btn-reheat').onclick = () => { alpha = 1; };
-document.getElementById('btn-reset').onclick = () => { transform = { x: 0, y: 0, k: 1 }; alpha = 1; };
+// FPS tracking
+let frameCount = 0;
+let lastFPSTime = performance.now();
+let currentFPS = 0;
 
-const searchInput = document.getElementById('search-input');
-let searchTerm = '';
-searchInput.addEventListener('input', () => { searchTerm = searchInput.value.toLowerCase(); });
+// Click tracking for double-click
+let lastClickTime = 0;
+let lastClickId = null;
 
-const tooltip = document.getElementById('tooltip');
-let hoveredNode = null;
-let alpha = 1;
-
-const minYear = -8000, maxYear = 2025;
-function timeToX(year, w) {
-  const t = (year - minYear) / (maxYear - minYear);
-  return 100 + t * (w - 200);
-}
-
-// ── Load data ──
-async function loadData() {
-  const resp = await fetch(DATA_URL);
-  const data = await resp.json();
-
-  DOMAINS = data.domains;
-  domainList = Object.keys(DOMAINS);
-  domainList.forEach((d, i) => {
-    domainCenterY[d] = (i + 0.5) / domainList.length;
-    domainVisible[d] = true;
-  });
-
-  nodes = data.nodes;
-  nodeMap = {};
-  nodes.forEach(n => {
-    n.x = 0; n.y = 0; n.vx = 0; n.vy = 0; n.pinned = false;
-    nodeMap[n.id] = n;
-  });
-
-  linkObjs = data.links
-    .map(l => ({ source: nodeMap[l.source], target: nodeMap[l.target], weight: l.weight || 1 }))
-    .filter(l => l.source && l.target);
-
-  connectionCount = {};
-  nodes.forEach(n => connectionCount[n.id] = 0);
-  linkObjs.forEach(l => { connectionCount[l.source.id]++; connectionCount[l.target.id]++; });
-  maxConn = Math.max(1, ...Object.values(connectionCount));
-  nodes.forEach(n => { n.radius = 4 + 8 * (connectionCount[n.id] / maxConn); });
-
-  nodes.forEach(n => {
-    n.x = timeToX(n.year, W) + (Math.random() - 0.5) * 100;
-    n.y = domainCenterY[n.domain] * H + (Math.random() - 0.5) * 80;
-  });
-
-  // Sort nodes by importance for label priority
-  nodes.sort((a, b) => connectionCount[b.id] - connectionCount[a.id]);
-
-  buildUI();
-  alpha = 1;
-  loop();
+// ── Utilities ──────────────────────────────────────────────
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return [r, g, b];
 }
 
-function buildUI() {
-  const toggleContainer = document.getElementById('domain-toggles');
-  toggleContainer.innerHTML = '';
-  domainList.forEach(d => {
-    const el = document.createElement('div');
-    el.className = 'domain-toggle';
-    el.textContent = DOMAINS[d].label;
-    el.style.borderColor = DOMAINS[d].color;
-    el.style.color = DOMAINS[d].color;
-    el.style.backgroundColor = DOMAINS[d].color + '20';
-    el.onclick = () => {
-      domainVisible[d] = !domainVisible[d];
-      el.classList.toggle('off', !domainVisible[d]);
-    };
-    toggleContainer.appendChild(el);
-  });
-
-  const legendEl = document.getElementById('legend');
-  legendEl.innerHTML = '';
-  domainList.forEach(d => {
-    const item = document.createElement('div');
-    item.className = 'legend-item';
-    item.innerHTML = `<div class="legend-dot" style="background:${DOMAINS[d].color}"></div>${DOMAINS[d].label}`;
-    legendEl.appendChild(item);
-  });
-}
-
-// ── Timeline ──
-const timelineEl = document.getElementById('timeline');
-const eras = [
-  { year: -8000, label: '8000 BC' }, { year: -3000, label: '3000 BC' },
-  { year: -500, label: '500 BC' }, { year: 0, label: '0 AD' },
-  { year: 500, label: '500' }, { year: 1000, label: '1000' },
-  { year: 1500, label: '1500' }, { year: 1700, label: '1700' },
-  { year: 1800, label: '1800' }, { year: 1900, label: '1900' },
-  { year: 1950, label: '1950' }, { year: 2000, label: '2000' }, { year: 2025, label: '2025' },
-];
-function updateTimeline() {
-  timelineEl.innerHTML = '';
-  eras.forEach(e => {
-    const s = worldToScreen(timeToX(e.year, W), 0);
-    if (s.x > 0 && s.x < W) {
-      const el = document.createElement('div');
-      el.className = 'era-label';
-      el.style.left = s.x + 'px';
-      el.textContent = e.label;
-      timelineEl.appendChild(el);
-    }
-  });
-}
-
-// ── Physics ──
-function simulate() {
-  if (alpha < 0.001) return;
-  alpha *= (1 - params.decay * 0.05);
-
-  for (let i = 0; i < nodes.length; i++) {
-    if (!domainVisible[nodes[i].domain]) continue;
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (!domainVisible[nodes[j].domain]) continue;
-      const a = nodes[i], b = nodes[j];
-      let dx = b.x - a.x, dy = b.y - a.y;
-      let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      let force = params.charge / (dist * dist);
-      let fx = dx / dist * force, fy = dy / dist * force;
-      if (!a.pinned) { a.vx -= fx * alpha; a.vy -= fy * alpha; }
-      if (!b.pinned) { b.vx += fx * alpha; b.vy += fy * alpha; }
-    }
-  }
-
-  linkObjs.forEach(l => {
-    if (!domainVisible[l.source.domain] || !domainVisible[l.target.domain]) return;
-    let dx = l.target.x - l.source.x, dy = l.target.y - l.source.y;
-    let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    let force = (dist - params.linkdist) * params.linkstr * 0.01 * (l.weight || 1);
-    let fx = dx / dist * force, fy = dy / dist * force;
-    if (!l.source.pinned) { l.source.vx += fx * alpha; l.source.vy += fy * alpha; }
-    if (!l.target.pinned) { l.target.vx -= fx * alpha; l.target.vy -= fy * alpha; }
-  });
-
-  nodes.forEach(n => {
-    if (!domainVisible[n.domain] || n.pinned) return;
-    n.vx += (timeToX(n.year, W) - n.x) * params.timepull * 0.05 * alpha;
-  });
-
-  nodes.forEach(n => {
-    if (!domainVisible[n.domain] || n.pinned) return;
-    n.vy += (domainCenterY[n.domain] * H - n.y) * params.cluster * 0.1 * alpha;
-  });
-
-  for (let i = 0; i < nodes.length; i++) {
-    if (!domainVisible[nodes[i].domain]) continue;
-    for (let j = i + 1; j < nodes.length; j++) {
-      if (!domainVisible[nodes[j].domain]) continue;
-      const a = nodes[i], b = nodes[j];
-      let dx = b.x - a.x, dy = b.y - a.y;
-      let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      let minDist = (a.radius + b.radius) * params.collision;
-      if (dist < minDist) {
-        let push = (minDist - dist) * 0.5;
-        let fx = dx / dist * push, fy = dy / dist * push;
-        if (!a.pinned) { a.x -= fx; a.y -= fy; }
-        if (!b.pinned) { b.x += fx; b.y += fy; }
-      }
-    }
-  }
-
-  nodes.forEach(n => {
-    if (n.pinned || !domainVisible[n.domain]) return;
-    n.vx *= (1 - params.decay);
-    n.vy *= (1 - params.decay);
-    n.x += n.vx;
-    n.y += n.vy;
-  });
-}
-
-// ── Convex hull ──
-function convexHull(points) {
-  if (points.length < 3) return points;
-  points.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cross = (o, a, b) => (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
-  const lower = [];
-  for (const p of points) {
-    while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], p) <= 0) lower.pop();
-    lower.push(p);
-  }
-  const upper = [];
-  for (let i = points.length - 1; i >= 0; i--) {
-    while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], points[i]) <= 0) upper.pop();
-    upper.push(points[i]);
-  }
-  upper.pop(); lower.pop();
-  return lower.concat(upper);
-}
-
-function expandHull(hull, pad) {
-  if (hull.length < 2) return hull;
-  const cx = hull.reduce((s,p)=>s+p[0],0)/hull.length;
-  const cy = hull.reduce((s,p)=>s+p[1],0)/hull.length;
-  return hull.map(p => {
-    const dx = p[0]-cx, dy = p[1]-cy;
-    const d = Math.sqrt(dx*dx+dy*dy) || 1;
-    return [p[0]+dx/d*pad, p[1]+dy/d*pad];
-  });
-}
-
-// ── Label collision system ──
-function measureText(text, fontSize) {
-  ctx.font = `${fontSize}px 'Segoe UI', system-ui, sans-serif`;
-  const m = ctx.measureText(text);
-  return { w: m.width, h: fontSize };
-}
-
-function rectsOverlap(a, b) {
-  return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
-}
-
-// ── Render ──
-function draw() {
-  ctx.clearRect(0, 0, W, H);
-  ctx.save();
-  ctx.translate(transform.x, transform.y);
-  ctx.scale(transform.k, transform.k);
-
-  const showNodeLabels = transform.k > params.labelzoom;
-  const showClusterLabels = transform.k <= params.labelzoom;
-
-  // Cluster hulls + labels
-  const clusterCentroids = {};
-  domainList.forEach(d => {
-    if (!domainVisible[d]) return;
-    const domNodes = nodes.filter(n => n.domain === d);
-    if (domNodes.length === 0) return;
-    const cx = domNodes.reduce((s,n)=>s+n.x,0) / domNodes.length;
-    const cy = domNodes.reduce((s,n)=>s+n.y,0) / domNodes.length;
-    clusterCentroids[d] = { x: cx, y: cy, count: domNodes.length };
-
-    if (params.hullopacity > 0 && domNodes.length >= 3) {
-      const pts = domNodes.map(n => [n.x, n.y]);
-      const hull = expandHull(convexHull(pts), 30);
-      ctx.beginPath();
-      ctx.moveTo(hull[0][0], hull[0][1]);
-      for (let i = 1; i < hull.length; i++) ctx.lineTo(hull[i][0], hull[i][1]);
-      ctx.closePath();
-      const c = DOMAINS[d].color;
-      ctx.fillStyle = c + Math.round(params.hullopacity * 255).toString(16).padStart(2,'0');
-      ctx.fill();
-      ctx.strokeStyle = c + '30';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-  });
-
-  // Cluster labels when zoomed out
-  if (showClusterLabels) {
-    const clusterFontSize = Math.max(16, Math.min(60, 24 / transform.k));
-    const subFontSize = clusterFontSize * 0.4;
-    const clusterLabelRects = [];
-
-    domainList.forEach(d => {
-      if (!domainVisible[d] || !clusterCentroids[d]) return;
-      const { x: cx, y: cy, count } = clusterCentroids[d];
-      const label = DOMAINS[d].label;
-      const c = DOMAINS[d].color;
-
-      ctx.font = `bold ${clusterFontSize}px 'Segoe UI', system-ui, sans-serif`;
-      const tw = ctx.measureText(label).width;
-      const rect = {
-        x: cx - tw/2 - 10, y: cy - clusterFontSize/2 - 5,
-        w: tw + 20, h: clusterFontSize + subFontSize + 15
-      };
-
-      let overlaps = false;
-      for (const r of clusterLabelRects) {
-        if (rectsOverlap(rect, r)) { overlaps = true; break; }
-      }
-      if (overlaps) return;
-      clusterLabelRects.push(rect);
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `bold ${clusterFontSize}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = c + 'aa';
-      ctx.fillText(label, cx, cy);
-
-      ctx.font = `${subFontSize}px 'Segoe UI', system-ui, sans-serif`;
-      ctx.fillStyle = c + '66';
-      ctx.fillText(`${count} concepts`, cx, cy + clusterFontSize * 0.6);
-    });
-  }
-
-  // Edges
-  linkObjs.forEach(l => {
-    if (!domainVisible[l.source.domain] || !domainVisible[l.target.domain]) return;
-    const a = l.source, b = l.target;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2 - 20;
-    ctx.quadraticCurveTo(mx, my, b.x, b.y);
-    let edgeAlpha = params.edgeopacity;
-    const isHoveredEdge = hoveredNode && (a === hoveredNode || b === hoveredNode);
-    if (isHoveredEdge) edgeAlpha = 0.7;
-    else if (searchTerm && (a.name.toLowerCase().includes(searchTerm) || b.name.toLowerCase().includes(searchTerm))) edgeAlpha = 0.5;
-    const w = l.weight || 1;
-    ctx.strokeStyle = `rgba(150,180,220,${edgeAlpha})`;
-    ctx.lineWidth = isHoveredEdge ? 1.5 * w : 0.5 * Math.max(1, w * 0.5);
-    ctx.stroke();
-
-    if (edgeAlpha > 0.05) {
-      const t = 0.85;
-      const ax2 = a.x + (b.x - a.x) * t;
-      const ay2 = a.y + (b.y - a.y) * t;
-      const angle = Math.atan2(b.y - a.y, b.x - a.x);
-      const sz = 3;
-      ctx.beginPath();
-      ctx.moveTo(ax2, ay2);
-      ctx.lineTo(ax2 - sz * Math.cos(angle - 0.4), ay2 - sz * Math.sin(angle - 0.4));
-      ctx.lineTo(ax2 - sz * Math.cos(angle + 0.4), ay2 - sz * Math.sin(angle + 0.4));
-      ctx.closePath();
-      ctx.fillStyle = `rgba(150,180,220,${edgeAlpha})`;
-      ctx.fill();
-    }
-  });
-
-  // Nodes + labels with collision avoidance
-  // First pass: draw all node circles
-  nodes.forEach(n => {
-    if (!domainVisible[n.domain]) return;
-    const c = DOMAINS[n.domain].color;
-    const isHovered = n === hoveredNode;
-    const isSearched = searchTerm && n.name.toLowerCase().includes(searchTerm);
-    const dimmed = searchTerm && !isSearched && !isHovered;
-
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-
-    if (isHovered) { ctx.shadowColor = c; ctx.shadowBlur = 20; }
-
-    ctx.fillStyle = dimmed ? c + '30' : c + (isSearched ? 'ff' : 'cc');
-    ctx.fill();
-
-    if (n.pinned) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
-
-    ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0;
-  });
-
-  // Second pass: labels with greedy collision avoidance
-  // nodes is already sorted by importance (connection count desc)
-  if (showNodeLabels || searchTerm || hoveredNode) {
-    const placedRects = [];
-    const PAD = 3;
-
-    const fontSize = Math.max(8, Math.min(13, 10 / transform.k));
-
-    nodes.forEach(n => {
-      if (!domainVisible[n.domain]) return;
-      const c = DOMAINS[n.domain].color;
-      const isHovered = n === hoveredNode;
-      const isSearched = searchTerm && n.name.toLowerCase().includes(searchTerm);
-      const dimmed = searchTerm && !isSearched && !isHovered;
-
-      const wantLabel = isHovered || isSearched || showNodeLabels;
-      if (!wantLabel) return;
-
-      const fSize = isHovered ? fontSize * 1.1 : fontSize;
-      ctx.font = `${isHovered ? 'bold ' : ''}${fSize}px 'Segoe UI', system-ui, sans-serif`;
-      const tw = ctx.measureText(n.name).width;
-
-      // Try positions: above, below, right, left
-      const candidates = [
-        { x: n.x - tw/2, y: n.y - n.radius - fSize - PAD },
-        { x: n.x - tw/2, y: n.y + n.radius + PAD + 2 },
-        { x: n.x + n.radius + PAD + 2, y: n.y - fSize/2 },
-        { x: n.x - tw - n.radius - PAD - 2, y: n.y - fSize/2 },
-      ];
-
-      let placed = false;
-      for (const cand of candidates) {
-        const rect = { x: cand.x - PAD, y: cand.y - PAD, w: tw + PAD*2, h: fSize + PAD*2 };
-        let collision = false;
-        for (const pr of placedRects) {
-          if (rectsOverlap(rect, pr)) { collision = true; break; }
-        }
-        if (!collision || isHovered) {
-          placedRects.push(rect);
-          ctx.font = `${isHovered ? 'bold ' : ''}${fSize}px 'Segoe UI', system-ui, sans-serif`;
-          ctx.fillStyle = dimmed ? '#ffffff30' : (isHovered ? '#fff' : '#ffffffcc');
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'top';
-          ctx.fillText(n.name, cand.x, cand.y);
-
-          if (isHovered && n.year) {
-            const yearStr = n.year < 0 ? `${Math.abs(n.year)} BC` : `${n.year} AD`;
-            const yFSize = fSize * 0.8;
-            ctx.font = `${yFSize}px 'Segoe UI', system-ui, sans-serif`;
-            ctx.fillStyle = c + '99';
-            ctx.fillText(yearStr, cand.x, cand.y - yFSize - 2);
-          }
-          placed = true;
-          break;
-        }
-      }
-
-      // Force-show hovered/searched even if all positions collide
-      if (!placed && (isHovered || isSearched)) {
-        const cand = candidates[0];
-        placedRects.push({ x: cand.x - PAD, y: cand.y - PAD, w: tw + PAD*2, h: fSize + PAD*2 });
-        ctx.font = `${isHovered ? 'bold ' : ''}${fSize}px 'Segoe UI', system-ui, sans-serif`;
-        ctx.fillStyle = isHovered ? '#fff' : '#ffffffcc';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        ctx.fillText(n.name, cand.x, cand.y);
-      }
-    });
-  }
-
-  ctx.restore();
-}
-
-// ── Hit testing ──
-function nodeAtScreen(sx, sy) {
-  const w = screenToWorld(sx, sy);
-  let closest = null, closestDist = Infinity;
-  nodes.forEach(n => {
-    if (!domainVisible[n.domain]) return;
-    const dx = n.x - w.x, dy = n.y - w.y;
-    const d = Math.sqrt(dx*dx + dy*dy);
-    const hitRadius = n.radius + 5 / transform.k;
-    if (d < hitRadius && d < closestDist) { closest = n; closestDist = d; }
-  });
-  return closest;
-}
-
-// ── Mouse interaction ──
-let isDragging = false, dragNode = null, lastMouse = { x: 0, y: 0 };
-
-canvas.addEventListener('mousedown', e => {
-  const n = nodeAtScreen(e.clientX, e.clientY);
-  if (n) { dragNode = n; n.pinned = true; }
-  else { isDragging = true; }
-  lastMouse = { x: e.clientX, y: e.clientY };
-});
-
-canvas.addEventListener('mousemove', e => {
-  if (dragNode) {
-    const w = screenToWorld(e.clientX, e.clientY);
-    dragNode.x = w.x; dragNode.y = w.y;
-    dragNode.vx = 0; dragNode.vy = 0;
-    alpha = Math.max(alpha, 0.3);
-  } else if (isDragging) {
-    transform.x += e.clientX - lastMouse.x;
-    transform.y += e.clientY - lastMouse.y;
-  } else {
-    const n = nodeAtScreen(e.clientX, e.clientY);
-    hoveredNode = n;
-    canvas.style.cursor = n ? 'pointer' : 'grab';
-    if (n) {
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 16) + 'px';
-      tooltip.style.top = (e.clientY - 10) + 'px';
-      tooltip.querySelector('.tt-name').textContent = n.name;
-      tooltip.querySelector('.tt-year').textContent = n.year < 0 ? `${Math.abs(n.year)} BC` : `${n.year} AD`;
-      tooltip.querySelector('.tt-domain').textContent = DOMAINS[n.domain].label;
-      tooltip.querySelector('.tt-desc').textContent = n.desc;
+function wrapText(text, maxChars) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    if (current && (current.length + 1 + word.length) > maxChars) {
+      lines.push(current);
+      current = word;
     } else {
-      tooltip.style.display = 'none';
+      current = current ? current + " " + word : word;
     }
   }
-  lastMouse = { x: e.clientX, y: e.clientY };
-});
-
-canvas.addEventListener('mouseup', () => { isDragging = false; dragNode = null; });
-canvas.addEventListener('dblclick', e => {
-  const n = nodeAtScreen(e.clientX, e.clientY);
-  if (n) { n.pinned = false; alpha = 0.5; }
-});
-
-canvas.addEventListener('wheel', e => {
-  e.preventDefault();
-  const factor = e.deltaY > 0 ? 0.92 : 1.08;
-  const newK = Math.max(0.1, Math.min(10, transform.k * factor));
-  const ratio = newK / transform.k;
-  transform.x = e.clientX - (e.clientX - transform.x) * ratio;
-  transform.y = e.clientY - (e.clientY - transform.y) * ratio;
-  transform.k = newK;
-}, { passive: false });
-
-// ── Main loop ──
-function loop() {
-  simulate();
-  draw();
-  updateTimeline();
-  requestAnimationFrame(loop);
+  if (current) lines.push(current);
+  return lines;
 }
 
-loadData();
+function computeNodeRadius(name, connectionCount) {
+  const fontSize = Math.min(13, 10 + Math.floor(connectionCount / 3));
+  const lines = wrapText(name, 12);
+  const charWidth = fontSize * 0.6;
+  const maxLineWidth = Math.max(...lines.map(l => l.length)) * charWidth;
+  const lineHeight = fontSize * 1.3;
+  const textHeight = lines.length * lineHeight;
+  const padding = fontSize;
+  const w = maxLineWidth + padding;
+  const h = textHeight + padding;
+  const radius = Math.ceil(Math.sqrt(w * w + h * h) / 2);
+  return Math.max(15, Math.min(50, radius));
+}
+
+function generateDomainColor(key) {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = ((hash << 5) - hash) + key.charCodeAt(i);
+    hash |= 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return hslToHex(hue, 65, 60);
+}
+
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+function getViewportBounds() {
+  const canvas = document.getElementById('deck-container').querySelector('canvas');
+  if (!canvas) return {minX: -1e6, maxX: 1e6, minY: -1e6, maxY: 1e6};
+  const w = canvas.width, h = canvas.height;
+  const scale = Math.pow(2, currentViewState.zoom);
+  const [cx, cy] = currentViewState.target;
+  const halfW = (w / 2) / scale;
+  const halfH = (h / 2) / scale;
+  return {minX: cx - halfW, maxX: cx + halfW, minY: cy - halfH, maxY: cy + halfH};
+}
+
+function getNodeColor(node) {
+  const domainKey = (node.domains || [])[0];
+  if (domainKey && domains[domainKey]) {
+    return hexToRgb(domains[domainKey].color);
+  }
+  return [150, 150, 150];
+}
+
+// ── Deck.gl Setup ──────────────────────────────────────────
+const deckgl = new deck.DeckGL({
+  container: 'deck-container',
+  views: new deck.OrthographicView({
+    controller: {
+      scrollZoom: {speed: 0.01, smooth: true},
+      dragPan: true,
+      doubleClickZoom: false,
+      keyboard: true
+    }
+  }),
+  initialViewState: {
+    target: [960, 540, 0],
+    zoom: 0,
+    minZoom: -4,
+    maxZoom: 6
+  },
+  onViewStateChange: ({viewState}) => {
+    currentViewState = viewState;
+    updateVisibleNodes();
+    debouncedAutoNameClusters();
+    return viewState;
+  },
+  getCursor: ({isHovering}) => isHovering ? 'pointer' : 'grab',
+  layers: []
+});
+
+// ── Layer Building ─────────────────────────────────────────
+function buildLayers() {
+  const zoom = currentViewState.zoom;
+  const showNodeLabels = zoom > labelZoomThreshold;
+  const showClusterLabels = zoom <= labelZoomThreshold;
+
+  const layers = [];
+
+  layers.push(new deck.LineLayer({
+    id: 'edges',
+    data: visibleEdges,
+    getSourcePosition: d => [nodes[d.sourceIdx].x, nodes[d.sourceIdx].y],
+    getTargetPosition: d => [nodes[d.targetIdx].x, nodes[d.targetIdx].y],
+    getColor: d => [255, 255, 255, Math.floor(d.weight * edgeOpacity * 255)],
+    getWidth: 1,
+    widthMinPixels: 1,
+    pickable: false,
+    updateTriggers: {
+      getSourcePosition: [tickCounter],
+      getTargetPosition: [tickCounter]
+    }
+  }));
+
+  layers.push(new deck.ScatterplotLayer({
+    id: 'nodes',
+    data: visibleNodes,
+    getPosition: d => [d.x, d.y],
+    getRadius: d => d.radius,
+    getFillColor: d => {
+      if (searchResults.size > 0 && !searchResults.has(d.id)) {
+        return [...d.color, 40];
+      }
+      return [...d.color, 200];
+    },
+    getLineColor: d => d.pinned ? [255, 255, 100, 255] : [...d.color, 255],
+    getLineWidth: d => d.pinned ? 3 : 1,
+    lineWidthMinPixels: 1,
+    radiusUnits: 'common',
+    pickable: true,
+    autoHighlight: true,
+    highlightColor: [255, 255, 255, 40],
+    onClick: (info) => handleNodeClick(info),
+    onHover: (info) => handleNodeHover(info),
+    updateTriggers: {
+      getPosition: [tickCounter],
+      getLineColor: [pinVersion],
+      getFillColor: [searchResults.size, tickCounter]
+    }
+  }));
+
+  if (showNodeLabels) {
+    layers.push(new deck.TextLayer({
+      id: 'node-labels',
+      data: visibleNodes,
+      getPosition: d => [d.x, d.y],
+      getText: d => d.wrappedName,
+      getSize: d => d.fontSize,
+      getColor: [255, 255, 255, 230],
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'center',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontWeight: 600,
+      sizeUnits: 'common',
+      pickable: false,
+      updateTriggers: {
+        getPosition: [tickCounter]
+      }
+    }));
+  }
+
+  if (showClusterLabels && clusterLabels.length > 0) {
+    layers.push(new deck.TextLayer({
+      id: 'cluster-labels',
+      data: clusterLabels,
+      getPosition: d => [d.x, d.y],
+      getText: d => d.text,
+      getSize: 24,
+      getColor: d => [...(d.color || [200, 200, 200]), 160],
+      getTextAnchor: 'middle',
+      getAlignmentBaseline: 'center',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontWeight: 700,
+      sizeUnits: 'common',
+      pickable: false
+    }));
+  }
+
+  return layers;
+}
+
+// ── Render Budget & Viewport Culling ───────────────────────
+function updateVisibleNodes() {
+  if (nodes.length <= renderBudget) {
+    visibleNodeIndices = nodes.map((_, i) => i);
+  } else {
+    const viewport = getViewportBounds();
+    const scored = nodes.map((n, i) => {
+      let score = (n.connectionCount || 0);
+      if (n.x >= viewport.minX && n.x <= viewport.maxX &&
+          n.y >= viewport.minY && n.y <= viewport.maxY) {
+        score += 1000;
+      }
+      return {idx: i, score};
+    });
+    scored.sort((a, b) => b.score - a.score);
+    visibleNodeIndices = scored.slice(0, renderBudget).map(s => s.idx);
+  }
+
+  const idxSet = new Set(visibleNodeIndices);
+  visibleNodes = visibleNodeIndices.map(i => nodes[i]);
+  visibleEdges = edges.filter(e => idxSet.has(e.sourceIdx) && idxSet.has(e.targetIdx));
+
+  computeClusterLabels();
+  updateStatusBar();
+}
+
+// ── Force Worker ───────────────────────────────────────────
+const worker = new Worker('force-worker.js');
+
+worker.onmessage = function(e) {
+  const msg = e.data;
+  if (msg.type === "tick") {
+    const positions = msg.positions;
+    for (let i = 0; i < nodes.length && i * 2 + 1 < positions.length; i++) {
+      nodes[i].x = positions[i * 2];
+      nodes[i].y = positions[i * 2 + 1];
+    }
+    tickCounter++;
+    settled = false;
+    requestRender();
+  } else if (msg.type === "settled") {
+    settled = true;
+    updateSettledIndicator();
+  }
+};
+
+let renderPending = false;
+function requestRender() {
+  if (!renderPending) {
+    renderPending = true;
+    requestAnimationFrame(() => {
+      renderPending = false;
+      updateVisibleNodes();
+      deckgl.setProps({layers: buildLayers()});
+      updateFPS();
+    });
+  }
+}
+
+// ── Graph Init ─────────────────────────────────────────────
+function getCurrentParams() {
+  return {
+    charge: parseFloat(document.getElementById('charge').value),
+    linkDistance: parseFloat(document.getElementById('linkdist').value),
+    linkStrength: parseFloat(document.getElementById('linkstr').value),
+    timePull: parseFloat(document.getElementById('timepull').value),
+    clusterGravity: parseFloat(document.getElementById('cluster').value),
+    velocityDecay: parseFloat(document.getElementById('decay').value),
+    collisionMultiplier: parseFloat(document.getElementById('collision').value)
+  };
+}
+
+async function initGraph() {
+  try {
+    const resp = await fetch('/api/graph');
+    const data = await resp.json();
+
+    domains = data.domains || {};
+
+    nodes = data.nodes.map((n, i) => {
+      const conns = data.links.filter(l => l.source === n.id || l.target === n.id).length;
+      const radius = computeNodeRadius(n.name, conns);
+      const domainKey = (n.domains || [])[0];
+      const color = domainKey && domains[domainKey]
+        ? hexToRgb(domains[domainKey].color)
+        : [150, 150, 150];
+      const lines = wrapText(n.name, 12);
+      return {
+        ...n,
+        radius,
+        x: 0, y: 0,
+        color,
+        pinned: false,
+        connectionCount: conns,
+        fontSize: Math.min(13, 10 + Math.floor(conns / 3)),
+        wrappedName: lines.join('\n')
+      };
+    });
+
+    nodeIndex = {};
+    nodes.forEach((n, i) => nodeIndex[n.id] = i);
+
+    edges = data.links.map(l => ({
+      source: l.source,
+      target: l.target,
+      weight: l.weight || 0.5,
+      sourceIdx: nodeIndex[l.source],
+      targetIdx: nodeIndex[l.target]
+    })).filter(e => e.sourceIdx !== undefined && e.targetIdx !== undefined);
+
+    worker.postMessage({
+      type: "init",
+      nodes: nodes.map(n => ({
+        id: n.id, x: n.x, y: n.y, radius: n.radius,
+        year: n.year, domain: (n.domains || [])[0] || "unknown"
+      })),
+      edges: edges.map(e => ({source: e.source, target: e.target, weight: e.weight})),
+      params: getCurrentParams(),
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+
+    updateVisibleNodes();
+    updateStatusBar();
+  } catch (err) {
+    showStatusMessage('Failed to load graph: ' + err.message, 'error');
+  }
+}
+
+// ── SSE Integration ────────────────────────────────────────
+function connectSSE() {
+  const source = new EventSource('/api/stream');
+
+  source.addEventListener('expand', (e) => {
+    const data = JSON.parse(e.data);
+    addNodesFromExpansion(data.new_nodes, data.new_edges);
+    if (data.stats) updateStatsDisplay(data.stats);
+    showStatusMessage(`Round ${data.round}: expanded "${data.focal}" (+${data.new_nodes.length} nodes)`);
+  });
+
+  source.addEventListener('status', (e) => {
+    const data = JSON.parse(e.data);
+    showStatusMessage(data.message);
+  });
+
+  source.addEventListener('error', (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      showStatusMessage('Error: ' + data.message, 'warn');
+    } catch (_) {}
+  });
+
+  source.addEventListener('done', (e) => {
+    const data = JSON.parse(e.data);
+    if (data.stats) updateStatsDisplay(data.stats);
+    showStatusMessage('Expansion complete.');
+    setExpansionRunning(false);
+  });
+
+  source.addEventListener('stopped', (e) => {
+    const data = JSON.parse(e.data);
+    if (data.stats) updateStatsDisplay(data.stats);
+    showStatusMessage('Expansion stopped.');
+    setExpansionRunning(false);
+  });
+
+  source.addEventListener('stats', (e) => {
+    const data = JSON.parse(e.data);
+    updateStatsDisplay(data);
+  });
+
+  source.onerror = () => {
+    showStatusMessage('SSE connection lost, reconnecting...', 'warn');
+  };
+}
+
+function updateStatsDisplay(stats) {
+  // stats from server may have different shape than local counts
+}
+
+// ── Adding Nodes from Expansion ────────────────────────────
+function addNodesFromExpansion(newNodes, newEdges) {
+  const workerNodes = [];
+  const workerEdges = [];
+
+  for (const n of newNodes) {
+    if (nodeIndex[n.id] !== undefined) continue;
+
+    const conns = newEdges.filter(e => e.source === n.id || e.target === n.id).length;
+    const radius = computeNodeRadius(n.name, conns);
+    const domainKey = (n.domains || [])[0];
+
+    if (domainKey && !domains[domainKey]) {
+      domains[domainKey] = {color: generateDomainColor(domainKey), label: domainKey.replace(/_/g, ' ')};
+    }
+
+    const color = domainKey && domains[domainKey]
+      ? hexToRgb(domains[domainKey].color)
+      : [150, 150, 150];
+    const lines = wrapText(n.name, 12);
+
+    const idx = nodes.length;
+    const node = {
+      ...n,
+      radius,
+      x: nodes.length > 0 ? nodes[0].x + (Math.random() - 0.5) * 200 : 0,
+      y: nodes.length > 0 ? nodes[0].y + (Math.random() - 0.5) * 200 : 0,
+      color,
+      pinned: false,
+      connectionCount: conns,
+      fontSize: Math.min(13, 10 + Math.floor(conns / 3)),
+      wrappedName: lines.join('\n')
+    };
+    nodes.push(node);
+    nodeIndex[n.id] = idx;
+
+    workerNodes.push({
+      id: n.id, x: node.x, y: node.y, radius,
+      year: n.year, domain: domainKey || "unknown"
+    });
+  }
+
+  for (const e of newEdges) {
+    const srcIdx = nodeIndex[e.source];
+    const tgtIdx = nodeIndex[e.target];
+    if (srcIdx === undefined || tgtIdx === undefined) continue;
+
+    edges.push({
+      source: e.source, target: e.target,
+      weight: e.weight || 0.5,
+      sourceIdx: srcIdx, targetIdx: tgtIdx
+    });
+
+    workerEdges.push({source: e.source, target: e.target, weight: e.weight || 0.5});
+  }
+
+  if (workerNodes.length > 0 || workerEdges.length > 0) {
+    worker.postMessage({type: "add", nodes: workerNodes, edges: workerEdges});
+  }
+}
+
+// ── Interactions ───────────────────────────────────────────
+function handleNodeHover(info) {
+  const tooltip = document.getElementById('tooltip');
+  if (info.object) {
+    const n = info.object;
+    tooltip.innerHTML =
+      '<div class="tt-name">' + escapeHtml(n.name) + '</div>' +
+      '<div class="tt-year">' + (n.year > 0 ? n.year + ' AD' : Math.abs(n.year) + ' BC') + '</div>' +
+      '<div class="tt-domain">' + (n.domains || []).join(' • ') + '</div>' +
+      (n.desc ? '<div class="tt-desc">' + escapeHtml(n.desc) + '</div>' : '');
+    tooltip.style.left = (info.x + 16) + 'px';
+    tooltip.style.top = (info.y + 16) + 'px';
+    tooltip.style.display = 'block';
+  } else {
+    tooltip.style.display = 'none';
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function handleNodeClick(info) {
+  if (!info.object) return;
+  const node = info.object;
+  const now = Date.now();
+
+  if (lastClickId === node.id && now - lastClickTime < 400) {
+    node.pinned = false;
+    worker.postMessage({type: "unpin", id: node.id});
+    pinVersion++;
+    lastClickId = null;
+  } else {
+    node.pinned = true;
+    worker.postMessage({type: "pin", id: node.id, x: node.x, y: node.y});
+    pinVersion++;
+  }
+
+  lastClickTime = now;
+  lastClickId = node.id;
+}
+
+// ── Search ─────────────────────────────────────────────────
+function handleSearch(query) {
+  searchQuery = query.toLowerCase().trim();
+  if (!searchQuery) {
+    searchResults.clear();
+    requestRender();
+    return;
+  }
+  searchResults = new Set(
+    nodes
+      .filter(n => n.name.toLowerCase().includes(searchQuery) || n.id.includes(searchQuery))
+      .map(n => n.id)
+  );
+  requestRender();
+}
+
+// ── Cluster Labels ─────────────────────────────────────────
+function computeClusterLabels() {
+  const groups = {};
+  for (const n of visibleNodes) {
+    const d = (n.domains || [])[0];
+    if (!d) continue;
+    if (!groups[d]) groups[d] = {sumX: 0, sumY: 0, count: 0, domain: d};
+    groups[d].sumX += n.x;
+    groups[d].sumY += n.y;
+    groups[d].count++;
+  }
+
+  clusterLabels = Object.values(groups)
+    .filter(g => g.count >= 3)
+    .map(g => ({
+      text: domains[g.domain]?.label || g.domain.replace(/_/g, ' '),
+      x: g.sumX / g.count,
+      y: g.sumY / g.count,
+      color: domains[g.domain] ? hexToRgb(domains[g.domain].color) : [200, 200, 200]
+    }));
+}
+
+async function nameClustersByLLM() {
+  const groups = {};
+  for (const n of visibleNodes) {
+    const d = (n.domains || [])[0] || 'unknown';
+    if (!groups[d]) groups[d] = {names: []};
+    groups[d].names.push(n.name);
+  }
+
+  const clusterList = Object.values(groups).filter(g => g.names.length >= 3);
+  if (clusterList.length === 0) return;
+
+  const backend = document.getElementById('backend-select').value;
+  try {
+    const resp = await fetch('/api/cluster-names', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({clusters: clusterList, backend})
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      for (let i = 0; i < Math.min(data.names.length, clusterLabels.length); i++) {
+        clusterLabels[i].text = data.names[i];
+      }
+      requestRender();
+    }
+  } catch (err) {
+    showStatusMessage('Cluster naming failed: ' + err.message, 'warn');
+  }
+}
+
+function debouncedAutoNameClusters() {
+  if (!autoNameEnabled) return;
+  clearTimeout(autoNameTimer);
+  autoNameTimer = setTimeout(() => nameClustersByLLM(), 3000);
+}
+
+// ── UI Controls ────────────────────────────────────────────
+function setupSliders() {
+  const sliders = {
+    charge:    {id: 'charge',      param: 'charge'},
+    linkdist:  {id: 'linkdist',    param: 'linkDistance'},
+    linkstr:   {id: 'linkstr',     param: 'linkStrength'},
+    timepull:  {id: 'timepull',    param: 'timePull'},
+    cluster:   {id: 'cluster',     param: 'clusterGravity'},
+    decay:     {id: 'decay',       param: 'velocityDecay'},
+    collision: {id: 'collision',   param: 'collisionMultiplier'}
+  };
+
+  for (const [key, cfg] of Object.entries(sliders)) {
+    const el = document.getElementById(cfg.id);
+    const val = document.getElementById('v-' + cfg.id);
+    el.addEventListener('input', () => {
+      val.textContent = el.value;
+      worker.postMessage({type: "params", [cfg.param]: parseFloat(el.value)});
+    });
+  }
+
+  // Display sliders
+  document.getElementById('budget').addEventListener('input', (e) => {
+    renderBudget = parseInt(e.target.value);
+    document.getElementById('v-budget').textContent = renderBudget;
+    updateVisibleNodes();
+    requestRender();
+  });
+
+  document.getElementById('labelzoom').addEventListener('input', (e) => {
+    labelZoomThreshold = parseFloat(e.target.value);
+    document.getElementById('v-labelzoom').textContent = labelZoomThreshold;
+    requestRender();
+  });
+
+  document.getElementById('edgeopacity').addEventListener('input', (e) => {
+    edgeOpacity = parseFloat(e.target.value);
+    document.getElementById('v-edgeopacity').textContent = edgeOpacity;
+    requestRender();
+  });
+}
+
+// ── Expansion Controls ─────────────────────────────────────
+async function startExpansion() {
+  const seed = document.getElementById('seed-input').value.trim();
+  const backend = document.getElementById('backend-select').value;
+  const rounds = parseInt(document.getElementById('rounds-input').value) || 0;
+
+  if (!seed) { showStatusMessage('Enter a seed concept', 'warn'); return; }
+
+  try {
+    const resp = await fetch('/api/expand', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({seed, backend, rounds})
+    });
+
+    const data = await resp.json();
+    if (resp.ok) {
+      setExpansionRunning(true);
+      showStatusMessage('Expanding from "' + seed + '" using ' + backend + '...');
+    } else {
+      showStatusMessage('Error: ' + data.error, 'error');
+    }
+  } catch (err) {
+    showStatusMessage('Request failed: ' + err.message, 'error');
+  }
+}
+
+async function stopExpansion() {
+  await fetch('/api/stop', {method: 'POST'});
+  showStatusMessage('Stopping...');
+}
+
+function setExpansionRunning(running) {
+  expansionRunning = running;
+  const btn = document.getElementById('expand-btn');
+  btn.textContent = running ? 'Stop' : 'Start';
+  btn.onclick = running ? stopExpansion : startExpansion;
+  if (running) {
+    btn.classList.add('active');
+  } else {
+    btn.classList.remove('active');
+  }
+}
+
+// ── Backend Dropdown ───────────────────────────────────────
+async function loadBackends() {
+  try {
+    const resp = await fetch('/api/backends');
+    const data = await resp.json();
+    const select = document.getElementById('backend-select');
+    for (const [name, info] of Object.entries(data)) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name + ' (' + info.model + ')';
+      opt.disabled = !info.configured;
+      if (name === 'openai' && info.configured) opt.selected = true;
+      select.appendChild(opt);
+    }
+  } catch (err) {
+    showStatusMessage('Failed to load backends', 'warn');
+  }
+}
+
+// ── Import JSON ────────────────────────────────────────────
+async function importJSON() {
+  const input = document.getElementById('import-file');
+  if (!input.files.length) return;
+
+  try {
+    const text = await input.files[0].text();
+    const data = JSON.parse(text);
+
+    const resp = await fetch('/api/import', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+
+    if (resp.ok) {
+      const result = await resp.json();
+      showStatusMessage('Imported ' + result.nodes + ' nodes, ' + result.edges + ' edges');
+      await initGraph();
+    } else {
+      showStatusMessage('Import failed', 'error');
+    }
+  } catch (err) {
+    showStatusMessage('Import error: ' + err.message, 'error');
+  }
+}
+
+// ── FPS Counter ────────────────────────────────────────────
+function updateFPS() {
+  frameCount++;
+  const now = performance.now();
+  if (now - lastFPSTime >= 1000) {
+    currentFPS = Math.round(frameCount * 1000 / (now - lastFPSTime));
+    document.getElementById('fps-counter').textContent = 'FPS: ' + currentFPS;
+    frameCount = 0;
+    lastFPSTime = now;
+  }
+}
+
+// ── Status Bar ─────────────────────────────────────────────
+function updateStatusBar() {
+  const total = nodes.length;
+  const visible = visibleNodes.length;
+  const edgeCount = edges.length;
+  document.getElementById('status-text').textContent =
+    'Showing ' + visible + ' / ' + total + ' concepts · ' + edgeCount + ' edges';
+}
+
+function updateSettledIndicator() {
+  document.getElementById('settled-indicator').textContent = settled ? '• Settled' : '';
+}
+
+let statusMsgTimer = null;
+function showStatusMessage(msg, level) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = level || '';
+  el.style.display = 'block';
+  clearTimeout(statusMsgTimer);
+  statusMsgTimer = setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+// ── Window Resize ──────────────────────────────────────────
+window.addEventListener('resize', () => {
+  worker.postMessage({type: "resize", width: window.innerWidth, height: window.innerHeight});
+});
+
+// ── Init ───────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  setupSliders();
+  await loadBackends();
+  await initGraph();
+  connectSSE();
+
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    handleSearch(e.target.value);
+  });
+
+  document.getElementById('auto-name-toggle').addEventListener('change', (e) => {
+    autoNameEnabled = e.target.checked;
+  });
+
+  computeClusterLabels();
+});
 </script>
 </body>
 </html>

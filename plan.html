@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Knowledge Tree — Implementation Plan</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117; color: #c9d1d9; font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.6; padding: 40px 20px;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+
+  h1 { color: #f0f6fc; font-size: 28px; margin-bottom: 8px; }
+  .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 32px; }
+
+  .step {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    margin-bottom: 20px; overflow: hidden; transition: border-color 0.2s;
+  }
+  .step:hover { border-color: #58a6ff40; }
+  .step.toggled-off .step-body { display: none; }
+  .step.toggled-off .step-header { opacity: 0.5; }
+
+  .step-header {
+    display: flex; align-items: center; gap: 12px; padding: 16px 20px;
+    cursor: pointer; user-select: none; border-bottom: 1px solid #30363d;
+  }
+  .step-number {
+    background: #58a6ff20; color: #58a6ff; font-size: 12px; font-weight: 600;
+    padding: 2px 10px; border-radius: 12px; white-space: nowrap;
+  }
+  .step-title { font-size: 16px; color: #f0f6fc; font-weight: 600; flex: 1; }
+  .step-toggle {
+    color: #8b949e; font-size: 18px; transition: transform 0.2s;
+  }
+  .step.toggled-off .step-toggle { transform: rotate(-90deg); }
+
+  .step-body { padding: 20px; }
+  .step-body p { margin-bottom: 12px; color: #c9d1d9; font-size: 14px; }
+  .step-body ul { margin: 8px 0 16px 20px; }
+  .step-body li { margin: 6px 0; font-size: 14px; color: #b1bac4; }
+
+  .files { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
+  .file-tag {
+    background: #1f6feb20; color: #58a6ff; font-size: 12px; font-family: monospace;
+    padding: 3px 10px; border-radius: 4px; border: 1px solid #1f6feb40;
+  }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { text-align: left; color: #8b949e; font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #30363d; }
+  td { padding: 8px 12px; border-bottom: 1px solid #21262d; color: #b1bac4; }
+  td code { background: #1f6feb15; color: #79c0ff; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  .code-block {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    padding: 14px 16px; margin: 12px 0; font-family: monospace; font-size: 13px;
+    color: #79c0ff; overflow-x: auto; white-space: pre-wrap; position: relative;
+  }
+
+  .decision {
+    background: #f0883e15; border: 1px solid #f0883e40; border-radius: 6px;
+    padding: 14px 16px; margin: 12px 0;
+  }
+  .decision-label {
+    color: #f0883e; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .decision-text { color: #c9d1d9; font-size: 14px; }
+
+  .editable {
+    background: #21262d; border: 1px solid #30363d; border-radius: 4px;
+    padding: 8px 12px; color: #c9d1d9; font-size: 14px; font-family: inherit;
+    width: 100%; min-height: 60px; resize: vertical; line-height: 1.5;
+  }
+  .editable:focus { outline: none; border-color: #58a6ff; }
+  .edit-label {
+    color: #8b949e; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+  }
+  .edit-label::before { content: '✎'; font-size: 13px; }
+  .edit-group { margin: 16px 0; }
+
+  .prompt-box {
+    background: #13233a; border: 1px solid #1f6feb60; border-radius: 8px;
+    padding: 16px; margin: 16px 0; position: relative;
+  }
+  .prompt-label {
+    color: #58a6ff; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
+  }
+  .prompt-label::before { content: '⟩'; font-size: 16px; }
+  .prompt-text {
+    color: #e2e8f0; font-size: 13px; font-family: monospace; line-height: 1.6;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .copy-btn {
+    position: absolute; top: 12px; right: 12px;
+    background: #1f6feb30; border: 1px solid #1f6feb50; color: #58a6ff;
+    padding: 4px 12px; border-radius: 4px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { background: #1f6feb50; }
+  .copy-btn.copied { background: #2ea04330; border-color: #2ea04350; color: #3fb950; }
+
+  .separator { border-top: 1px solid #21262d; margin: 32px 0; }
+
+  #summary {
+    background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+    padding: 20px; margin-top: 32px;
+  }
+  #summary h2 { color: #f0f6fc; font-size: 18px; margin-bottom: 12px; }
+
+  #generate-prompt-btn {
+    background: #238636; border: 1px solid #2ea043; color: #fff;
+    padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 20px; transition: background 0.15s;
+  }
+  #generate-prompt-btn:hover { background: #2ea043; }
+
+  #final-prompt {
+    display: none; margin-top: 20px;
+  }
+  #final-prompt .prompt-text { font-size: 13px; max-height: 500px; overflow-y: auto; }
+
+  .note { color: #8b949e; font-size: 12px; font-style: italic; margin: 8px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Knowledge Tree — Implementation Plan</h1>
+<p class="subtitle">Click any section to toggle. Edit fields to customize. Copy prompts to feed back to Claude.</p>
+
+<!-- STEP 1 -->
+<div class="step" id="step1">
+  <div class="step-header" onclick="toggleStep('step1')">
+    <span class="step-number">Step 1</span>
+    <span class="step-title">Separate data from visualization</span>
+    <span class="step-toggle">▼</span>
+  </div>
+  <div class="step-body">
+    <div class="files">
+      <span class="file-tag">knowledge.json</span>
+      <span class="file-tag">index.html</span>
+    </div>
+    <p>Extract hardcoded nodes/links/domains into a JSON file. HTML loads via <code>fetch()</code>. Requires serving via HTTP server instead of <code>file://</code>.</p>
+    <div class="code-block">{
+  "domains": { "physics": { "color": "#ff8a65", "label": "Physics" }, ... },
+  "nodes":   [{ "id": "...", "name": "...", "year": N, "domain": "...", "desc": "..." }],
+  "links":   [{ "source": "id", "target": "id", "weight": 0.0-1.0 }]
+}</div>
+    <div class="edit-group">
+      <div class="edit-label">Customize schema</div>
+      <textarea class="editable" id="edit-schema" rows="3">Add "weight" field (0-1) to links. Nodes have: id, name, year, domain, desc. Domains have: color, label.</textarea>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="step" id="step2">
+  <div class="step-header" onclick="toggleStep('step2')">
+    <span class="step-number">Step 2</span>
+    <span class="step-title">Label collision avoidance</span>
+    <span class="step-toggle">▼</span>
+  </div>
+  <div class="step-body">
+    <div class="files"><span class="file-tag">index.html</span></div>
+    <p>Greedy label placement sorted by node importance. No overlapping text.</p>
+    <ul>
+      <li>Sort nodes by connection count (most-connected labeled first)</li>
+      <li>For each node, try 4 positions: above, below, right, left</li>
+      <li>Track placed bounding rects using <code>ctx.measureText()</code></li>
+      <li>Skip label if all 4 positions collide — the node dot is still visible</li>
+      <li>Hovered & searched nodes always get a label (forced override)</li>
+    </ul>
+    <div class="edit-group">
+      <div class="edit-label">Customize behavior</div>
+      <textarea class="editable" id="edit-labels" rows="2">Try 4 positions per label: above, below, right, left. Priority by connection count. Always show hovered/searched.</textarea>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="step" id="step3">
+  <div class="step-header" onclick="toggleStep('step3')">
+    <span class="step-number">Step 3</span>
+    <span class="step-title">Cluster labels when zoomed out</span>
+    <span class="step-toggle">▼</span>
+  </div>
+  <div class="step-body">
+    <div class="files"><span class="file-tag">index.html</span></div>
+    <p>When zoomed out past the label threshold, show large domain names at cluster centroids.</p>
+    <ul>
+      <li>Compute live centroid of each domain's visible nodes</li>
+      <li>Render domain name as bold text, scaled inversely with zoom</li>
+      <li>Subtitle: concept count (e.g. "Physics — 24 concepts")</li>
+      <li>Cluster labels also collision-checked against each other</li>
+    </ul>
+    <div class="edit-group">
+      <div class="edit-label">Customize appearance</div>
+      <textarea class="editable" id="edit-clusters" rows="2">Bold domain label + "N concepts" subtitle at centroid. Collision-checked. Font size scales inversely with zoom.</textarea>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 4 -->
+<div class="step" id="step4">
+  <div class="step-header" onclick="toggleStep('step4')">
+    <span class="step-number">Step 4</span>
+    <span class="step-title">LLM generator — multi-backend</span>
+    <span class="step-toggle">▼</span>
+  </div>
+  <div class="step-body">
+    <div class="files"><span class="file-tag">generate.py</span></div>
+    <p>Python script that calls an LLM to expand the knowledge graph. Supports 5 backends, defaults to OpenAI.</p>
+
+    <table>
+      <tr><th>Provider</th><th>SDK</th><th>Default model</th><th>Env var</th></tr>
+      <tr><td><code>openai</code></td><td>openai SDK</td><td>gpt-4o</td><td>OPENAI_API_KEY</td></tr>
+      <tr><td><code>claude</code></td><td>anthropic SDK</td><td>claude-sonnet-4-20250514</td><td>ANTHROPIC_API_KEY</td></tr>
+      <tr><td><code>gemini</code></td><td>google-genai SDK</td><td>gemini-2.0-flash</td><td>GOOGLE_API_KEY</td></tr>
+      <tr><td><code>deepseek</code></td><td>openai SDK (compat)</td><td>deepseek-chat</td><td>DEEPSEEK_API_KEY</td></tr>
+      <tr><td><code>grok</code></td><td>openai SDK (compat)</td><td>grok-3</td><td>XAI_API_KEY</td></tr>
+    </table>
+
+    <p><strong>Generation loop:</strong></p>
+    <ul>
+      <li>Load existing knowledge.json (or start empty)</li>
+      <li>Pick expansion targets: underrepresented domains, few-connection nodes</li>
+      <li>Prompt LLM with existing concept IDs + domain focus → get new concepts + links as JSON</li>
+      <li>Merge & deduplicate, checkpoint after each batch</li>
+      <li>Runs until interrupted (Ctrl+C saves) or --rounds limit</li>
+    </ul>
+
+    <div class="code-block">python generate.py --input knowledge.json --output knowledge.json
+python generate.py --backend claude --rounds 5 --input knowledge.json --output knowledge.json
+python generate.py --backend gemini --seed-domain "psychology" --output knowledge.json</div>
+
+    <div class="edit-group">
+      <div class="edit-label">Customize generation strategy</div>
+      <textarea class="editable" id="edit-generation" rows="3">Expand by domain, picking underrepresented areas first. Ask for 20 concepts per LLM call. Include cross-domain connections. Allow LLM to propose new domains. Weighted connections 0-1.</textarea>
+    </div>
+
+    <div class="edit-group">
+      <div class="edit-label">Customize backends / models</div>
+      <textarea class="editable" id="edit-backends" rows="2">5 backends: openai (default), claude, gemini, deepseek, grok. DeepSeek and Grok use OpenAI-compatible endpoints.</textarea>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 5 -->
+<div class="step" id="step5">
+  <div class="step-header" onclick="toggleStep('step5')">
+    <span class="step-number">Step 5</span>
+    <span class="step-title">Local dev server</span>
+    <span class="step-toggle">▼</span>
+  </div>
+  <div class="step-body">
+    <div class="files"><span class="file-tag">project root</span></div>
+    <div class="code-block">cd ~/projects/knowledge-tree && python3 -m http.server 8080</div>
+    <p class="note">Needed because fetch() won't work from file:// URLs.</p>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- PROMPT GENERATORS -->
+<div id="summary">
+  <h2>Generate Implementation Prompt</h2>
+  <p style="font-size:14px; color:#8b949e; margin-bottom:16px;">
+    Edit any fields above, then click the button to generate a prompt you can paste into Claude Code.
+    Toggled-off steps will be excluded.
+  </p>
+  <button id="generate-prompt-btn" onclick="generatePrompt()">Generate Prompt</button>
+
+  <div id="final-prompt">
+    <div class="prompt-box">
+      <div class="prompt-label">Full implementation prompt</div>
+      <button class="copy-btn" onclick="copyFinalPrompt(this)">Copy</button>
+      <div class="prompt-text" id="final-prompt-text"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Per-step modification prompts -->
+<div class="separator"></div>
+<h2 style="color:#f0f6fc; font-size:18px; margin-bottom:16px;">Quick Modification Prompts</h2>
+<p style="font-size:14px; color:#8b949e; margin-bottom:20px;">Copy these to ask Claude to change a specific part of the plan.</p>
+
+<div class="prompt-box">
+  <div class="prompt-label">Change the data schema</div>
+  <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+  <div class="prompt-text">In the knowledge tree plan, change the data schema for knowledge.json. Instead of the current schema, use this structure:
+
+[DESCRIBE YOUR SCHEMA CHANGES HERE]
+
+Update the plan, the HTML loader, and the generate.py output format to match.</div>
+</div>
+
+<div class="prompt-box">
+  <div class="prompt-label">Change label behavior</div>
+  <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+  <div class="prompt-text">In the knowledge tree plan, change how label collision avoidance works. Instead of the current approach:
+
+[DESCRIBE YOUR PREFERRED LABEL BEHAVIOR]
+
+For example: "show labels only on hover", "use leader lines instead of hiding", "fade opacity instead of hiding", etc.</div>
+</div>
+
+<div class="prompt-box">
+  <div class="prompt-label">Change cluster appearance</div>
+  <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+  <div class="prompt-text">In the knowledge tree plan, change how cluster labels look when zoomed out:
+
+[DESCRIBE YOUR PREFERRED CLUSTER APPEARANCE]
+
+For example: "use icons instead of text", "show top 3 concepts per cluster", "add a timeline range per cluster", etc.</div>
+</div>
+
+<div class="prompt-box">
+  <div class="prompt-label">Change generation strategy</div>
+  <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+  <div class="prompt-text">In the knowledge tree plan, change how the LLM generator expands the graph:
+
+[DESCRIBE YOUR PREFERRED GENERATION APPROACH]
+
+For example: "start from a single root concept and branch outward", "focus on one domain at a time", "use Wikipedia categories as seeds", etc.</div>
+</div>
+
+<div class="prompt-box">
+  <div class="prompt-label">Add/remove a backend</div>
+  <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+  <div class="prompt-text">In the knowledge tree plan, modify the supported LLM backends:
+
+[ADD: provider name, SDK/endpoint, default model, env var]
+[REMOVE: provider name]
+
+Update generate.py's backend adapter layer accordingly.</div>
+</div>
+
+<div class="prompt-box">
+  <div class="prompt-label">Add a new feature</div>
+  <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+  <div class="prompt-text">Add a new feature to the knowledge tree plan:
+
+[DESCRIBE THE FEATURE]
+
+Add it as a new step and update the implementation prompt accordingly. Consider how it interacts with existing steps (data schema, visualization, generation).</div>
+</div>
+
+</div>
+
+<script>
+function toggleStep(id) {
+  document.getElementById(id).classList.toggle('toggled-off');
+}
+
+function copyPrompt(btn) {
+  const text = btn.parentElement.querySelector('.prompt-text').textContent;
+  navigator.clipboard.writeText(text);
+  btn.textContent = 'Copied!';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+}
+
+function copyFinalPrompt(btn) {
+  const text = document.getElementById('final-prompt-text').textContent;
+  navigator.clipboard.writeText(text);
+  btn.textContent = 'Copied!';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+}
+
+function generatePrompt() {
+  const steps = [];
+  const active = (id) => !document.getElementById(id).classList.contains('toggled-off');
+
+  if (active('step1')) {
+    const schema = document.getElementById('edit-schema').value;
+    steps.push(`## Step 1: Separate data from visualization
+Create ~/projects/knowledge-tree/knowledge.json and modify index.html to load data via fetch().
+Schema notes: ${schema}
+Extract the current hardcoded DOMAINS, nodes, and links arrays into this JSON file.`);
+  }
+
+  if (active('step2')) {
+    const labels = document.getElementById('edit-labels').value;
+    steps.push(`## Step 2: Label collision avoidance
+Modify the draw() function in index.html.
+Requirements: ${labels}
+Implementation: sort nodes by connection count desc, use ctx.measureText() for bounding rects, maintain a placed-rects list, skip labels that collide.`);
+  }
+
+  if (active('step3')) {
+    const clusters = document.getElementById('edit-clusters').value;
+    steps.push(`## Step 3: Cluster labels when zoomed out
+Modify the draw() function in index.html.
+When transform.k <= params.labelzoom, show domain labels at cluster centroids instead of individual node labels.
+Appearance: ${clusters}`);
+  }
+
+  if (active('step4')) {
+    const gen = document.getElementById('edit-generation').value;
+    const backends = document.getElementById('edit-backends').value;
+    steps.push(`## Step 4: LLM generator script
+Create ~/projects/knowledge-tree/generate.py
+Backends: ${backends}
+Generation strategy: ${gen}
+CLI: --input, --output, --backend, --rounds, --seed-domain flags.
+The script runs in a loop expanding the graph. Checkpoints after each batch. Ctrl+C saves progress.
+Use JSON mode / structured output. Deduplicate by concept ID. Allow new domain proposals.`);
+  }
+
+  if (active('step5')) {
+    steps.push(`## Step 5: Serve locally
+Document that the project needs python3 -m http.server 8080 to serve, since fetch() won't work from file:// URLs.`);
+  }
+
+  const prompt = `Implement the following changes to the knowledge tree project at ~/projects/knowledge-tree/.
+
+The project currently has index.html (force-directed graph visualization of human knowledge concepts) with all data hardcoded inline.
+
+${steps.join('\n\n')}
+
+## Files
+- index.html — visualization (modify)
+- knowledge.json — data file (create)
+- generate.py — LLM graph expander (create)
+
+## Verification
+1. python3 -m http.server 8080 in project dir
+2. Open localhost:8080 — graph loads from JSON, labels don't overlap, cluster labels appear on zoom-out
+3. Run generate.py with --rounds 1 to test expansion
+4. Reload visualization with expanded data`;
+
+  document.getElementById('final-prompt-text').textContent = prompt;
+  document.getElementById('final-prompt').style.display = 'block';
+  document.getElementById('final-prompt').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+</script>
+
+</body>
+</html>

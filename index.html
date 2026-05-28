@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tree of Knowledge</title>
 <script src="https://unpkg.com/deck.gl@9.1.4/dist.min.js"></script>
+<script src="https://unpkg.com/@luma.gl/engine@9.1.4/dist/dist.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { background: #0a0a0f; color: #ccc; font-family: 'Segoe UI', system-ui, sans-serif; overflow: hidden; }
@@ -55,6 +56,32 @@
   }
   #search-input::placeholder { color: #555; }
   #search-input:focus { border-color: rgba(102,170,255,0.4); }
+
+  #node-panel {
+    position: fixed; top: 56px; left: 16px; width: 260px; z-index: 10;
+    background: rgba(15,15,25,0.92); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 14px; backdrop-filter: blur(12px);
+    font-size: 13px; display: none;
+  }
+  #node-panel .np-header {
+    display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;
+  }
+  #node-panel .np-name { font-size: 16px; font-weight: 600; color: #fff; line-height: 1.3; flex: 1; }
+  #node-panel .np-close {
+    background: none; border: none; color: #666; font-size: 18px; cursor: pointer;
+    padding: 0 0 0 8px; line-height: 1;
+  }
+  #node-panel .np-close:hover { color: #fff; }
+  #node-panel .np-year { font-size: 12px; color: #6af; margin-bottom: 6px; }
+  #node-panel .np-stats { font-size: 11px; color: #777; margin-bottom: 8px; }
+  #node-panel .np-desc {
+    font-size: 12px; color: #bbb; line-height: 1.5; margin-bottom: 10px;
+    max-height: 120px; overflow-y: auto;
+  }
+  #node-panel .np-desc::-webkit-scrollbar { width: 3px; }
+  #node-panel .np-desc::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  #node-panel .np-actions { display: flex; gap: 6px; }
+  #node-panel .np-actions .btn { flex: 1; text-align: center; }
 
   #status-bar {
     position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
@@ -115,6 +142,20 @@
   <input type="text" placeholder="Search concepts..." id="search-input">
 </div>
 
+<div id="node-panel">
+  <div class="np-header">
+    <div class="np-name" id="np-name"></div>
+    <button class="np-close" onclick="closeNodePanel()">&times;</button>
+  </div>
+  <div class="np-year" id="np-year"></div>
+  <div class="np-stats" id="np-stats"></div>
+  <div class="np-desc" id="np-desc"></div>
+  <div class="np-actions">
+    <button class="btn" id="np-expand-btn" onclick="expandFromNode()">Expand</button>
+    <button class="btn" id="np-unpin-btn" onclick="unpinSelectedNode()">Unpin</button>
+  </div>
+</div>
+
 <div id="status-bar">
   <span id="status-text">Showing 0 / 0 concepts &middot; 0 edges</span>
   <span id="fps-counter">FPS: --</span>
@@ -124,39 +165,39 @@
 <div id="controls">
   <h2>Physics</h2>
   <div class="control-group">
-    <label>Charge <span id="v-charge">-120</span></label>
-    <input type="range" id="charge" min="-400" max="-10" step="5" value="-120">
+    <label>Charge <span id="v-charge">-250</span></label>
+    <input type="range" id="charge" min="-600" max="-10" step="5" value="-250">
   </div>
   <div class="control-group">
-    <label>Link Distance <span id="v-linkdist">80</span></label>
-    <input type="range" id="linkdist" min="20" max="300" step="5" value="80">
+    <label>Link Distance <span id="v-linkdist">120</span></label>
+    <input type="range" id="linkdist" min="20" max="400" step="5" value="120">
   </div>
   <div class="control-group">
-    <label>Link Strength <span id="v-linkstr">0.3</span></label>
-    <input type="range" id="linkstr" min="0.01" max="1" step="0.01" value="0.3">
+    <label>Link Strength <span id="v-linkstr">0.2</span></label>
+    <input type="range" id="linkstr" min="0.01" max="1" step="0.01" value="0.2">
   </div>
   <div class="control-group">
-    <label>Time Pull <span id="v-timepull">0.15</span></label>
-    <input type="range" id="timepull" min="0" max="0.5" step="0.01" value="0.15">
+    <label>Time Pull <span id="v-timepull">0.1</span></label>
+    <input type="range" id="timepull" min="0" max="0.5" step="0.01" value="0.1">
   </div>
   <div class="control-group">
-    <label>Cluster Gravity <span id="v-cluster">0.08</span></label>
-    <input type="range" id="cluster" min="0" max="0.3" step="0.01" value="0.08">
+    <label>Cluster Gravity <span id="v-cluster">0.05</span></label>
+    <input type="range" id="cluster" min="0" max="0.3" step="0.01" value="0.05">
   </div>
   <div class="control-group">
     <label>Velocity Decay <span id="v-decay">0.4</span></label>
     <input type="range" id="decay" min="0.1" max="0.9" step="0.02" value="0.4">
   </div>
   <div class="control-group">
-    <label>Collision <span id="v-collision">1.2</span></label>
-    <input type="range" id="collision" min="0.5" max="3" step="0.1" value="1.2">
+    <label>Collision <span id="v-collision">1.5</span></label>
+    <input type="range" id="collision" min="0.5" max="3" step="0.1" value="1.5">
   </div>
 
   <div class="separator"></div>
   <h2>Display</h2>
   <div class="control-group">
-    <label>Render Budget <span id="v-budget">500</span></label>
-    <input type="range" id="budget" min="50" max="5000" step="50" value="500">
+    <label>Render Budget <span id="v-budget">1500</span></label>
+    <input type="range" id="budget" min="50" max="5000" step="50" value="1500">
   </div>
   <div class="control-group">
     <label>Label Zoom <span id="v-labelzoom">-0.5</span></label>
@@ -165,6 +206,10 @@
   <div class="control-group">
     <label>Edge Opacity <span id="v-edgeopacity">0.15</span></label>
     <input type="range" id="edgeopacity" min="0" max="1" step="0.01" value="0.15">
+  </div>
+  <div class="control-group">
+    <label>Sphere Size <span id="v-spheresize">0.15</span></label>
+    <input type="range" id="spheresize" min="0.02" max="1" step="0.01" value="0.15">
   </div>
 
   <div class="separator"></div>
@@ -223,7 +268,7 @@ Output ONLY the lines, nothing else.</textarea>
 <div id="status-msg"></div>
 
 <div id="help-text">
-  Scroll to zoom &middot; Drag to pan &middot; Click to pin &middot; Double-click to unpin
+  MMB drag to orbit &middot; Shift+MMB to pan &middot; Ctrl+MMB to zoom &middot; Scroll to zoom &middot; Click to pin &middot; Double-click to unpin
 </div>
 
 <script>
@@ -238,17 +283,20 @@ let clusterLabels = [];
 
 let currentViewState = {
   target: [960, 540, 0],
-  zoom: 0,
-  minZoom: -4,
+  zoom: -1,
+  rotationX: 0,
+  rotationOrbit: 0,
+  minZoom: -6,
   maxZoom: 6
 };
 
 let tickCounter = 0;
 let pinVersion = 0;
 let settled = false;
-let renderBudget = 500;
+let renderBudget = 1500;
 let labelZoomThreshold = -0.5;
 let edgeOpacity = 0.15;
+let sphereSize = 0.15;
 let expansionRunning = false;
 let searchQuery = '';
 let searchResults = new Set();
@@ -263,6 +311,49 @@ let currentFPS = 0;
 // Click tracking for double-click
 let lastClickTime = 0;
 let lastClickId = null;
+
+// Pivot tracking
+let selectedNode = null;
+let pivotVisible = false;
+let pivotFadeTimer = null;
+let lastMousePos = {x: 0, y: 0};
+
+// ── Sphere Mesh ───────────────────────────────────────────
+let SPHERE_MESH;
+try {
+  SPHERE_MESH = new luma.SphereGeometry({radius: 1, nlat: 24, nlong: 24});
+  console.log('Using luma.SphereGeometry');
+} catch (e) {
+  console.warn('luma.SphereGeometry not available, using fallback');
+  const nlat = 24, nlong = 24;
+  const verts = [];
+  for (let lat = 0; lat <= nlat; lat++) {
+    const theta = lat * Math.PI / nlat;
+    const sinT = Math.sin(theta), cosT = Math.cos(theta);
+    for (let lon = 0; lon <= nlong; lon++) {
+      const phi = lon * 2 * Math.PI / nlong;
+      const x = sinT * Math.cos(phi), y = cosT, z = sinT * Math.sin(phi);
+      verts.push({x, y, z, u: lon / nlong, v: lat / nlat});
+    }
+  }
+  const positions = [], normals = [], texCoords = [];
+  for (let lat = 0; lat < nlat; lat++) {
+    for (let lon = 0; lon < nlong; lon++) {
+      const a = lat * (nlong + 1) + lon, b = a + nlong + 1;
+      for (const idx of [a, b, a + 1, b, b + 1, a + 1]) {
+        const vt = verts[idx];
+        positions.push(vt.x, vt.y, vt.z);
+        normals.push(vt.x, vt.y, vt.z);
+        texCoords.push(vt.u, vt.v);
+      }
+    }
+  }
+  SPHERE_MESH = {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    texCoords: new Float32Array(texCoords)
+  };
+}
 
 // ── Utilities ──────────────────────────────────────────────
 function wrapText(text, maxChars) {
@@ -326,15 +417,11 @@ function yearToColor(year) {
   return hslToRgb(hue, 0.65, 0.55);
 }
 
-function getViewportBounds() {
-  const canvas = document.getElementById('deck-container').querySelector('canvas');
-  if (!canvas) return {minX: -1e6, maxX: 1e6, minY: -1e6, maxY: 1e6};
-  const w = canvas.width, h = canvas.height;
-  const scale = Math.pow(2, currentViewState.zoom);
-  const [cx, cy] = currentViewState.target;
-  const halfW = (w / 2) / scale;
-  const halfH = (h / 2) / scale;
-  return {minX: cx - halfW, maxX: cx + halfW, minY: cy - halfH, maxY: cy + halfH};
+function getViewportCenter() {
+  const [cx, cy, cz] = currentViewState.target || [0, 0, 0];
+  const scale = Math.pow(2, currentViewState.zoom || 0);
+  const radius = 2000 / Math.max(scale, 0.01);
+  return {cx, cy, cz: cz || 0, radius};
 }
 
 function getNodeColor(node) {
@@ -342,31 +429,225 @@ function getNodeColor(node) {
 }
 
 // ── Deck.gl Setup ──────────────────────────────────────────
+const ambientLight = new deck.AmbientLight({color: [255, 255, 255], intensity: 0.6});
+const pointLight = new deck.PointLight({
+  color: [255, 255, 255],
+  intensity: 2.0,
+  position: [960, -500, 500]
+});
+const lightingEffect = new deck.LightingEffect({ambientLight, pointLight});
+
 const deckgl = new deck.DeckGL({
   container: 'deck-container',
-  views: new deck.OrthographicView({
+  effects: [lightingEffect],
+  views: new deck.OrbitView({
     controller: {
-      scrollZoom: {speed: 0.01, smooth: true},
-      dragPan: true,
+      scrollZoom: {speed: 0.005, smooth: true},
+      dragRotate: false,
+      dragPan: false,
       doubleClickZoom: false,
-      keyboard: true
+      keyboard: false
     }
   }),
-  initialViewState: {
-    target: [960, 540, 0],
-    zoom: 0,
-    minZoom: -4,
-    maxZoom: 6
-  },
+  initialViewState: currentViewState,
   onViewStateChange: ({viewState}) => {
     currentViewState = viewState;
     updateVisibleNodes();
     debouncedAutoNameClusters();
     return viewState;
   },
-  getCursor: ({isHovering}) => isHovering ? 'pointer' : 'grab',
+  getCursor: () => 'default',
   layers: []
 });
+
+// ── Camera helpers ────────────────────────────────────────
+function flyTo(target, zoom, duration) {
+  currentViewState = {
+    ...currentViewState,
+    target: [...target],
+    ...(zoom != null ? {zoom} : {}),
+    transitionDuration: duration || 300,
+    transitionInterpolator: new deck.LinearInterpolator(['target', 'zoom'])
+  };
+  deckgl.setProps({initialViewState: currentViewState});
+  showPivot();
+  updateVisibleNodes();
+  debouncedAutoNameClusters();
+  requestRender();
+}
+
+function showPivot() {
+  pivotVisible = true;
+  clearTimeout(pivotFadeTimer);
+  pivotFadeTimer = setTimeout(() => { pivotVisible = false; requestRender(); }, 1500);
+  requestRender();
+}
+
+// ── Blender-style Navigation ──────────────────────────────
+(() => {
+  const container = document.getElementById('deck-container');
+  let drag = null;
+  let vel = {ox: 0, oy: 0, px: 0, py: 0};
+  let inertiaId = null;
+  const ORBIT_SENS = 0.35;
+  const PAN_SENS = 1.5;
+  const ZOOM_SENS = 0.003;
+  const INERTIA_DECAY = 0.92;
+  const INERTIA_MIN = 0.05;
+
+  function pushView() {
+    deckgl.setProps({initialViewState: {...currentViewState, transitionDuration: 0}});
+    showPivot();
+    updateVisibleNodes();
+    debouncedAutoNameClusters();
+    requestRender();
+  }
+
+  function clampRotX(v) { return Math.max(-89.9, Math.min(89.9, v)); }
+  function clampZoom(v) { return Math.max(currentViewState.minZoom, Math.min(currentViewState.maxZoom, v)); }
+
+  function startInertia() {
+    if (inertiaId) cancelAnimationFrame(inertiaId);
+    function step() {
+      vel.ox *= INERTIA_DECAY; vel.oy *= INERTIA_DECAY;
+      vel.px *= INERTIA_DECAY; vel.py *= INERTIA_DECAY;
+      const total = Math.abs(vel.ox) + Math.abs(vel.oy) + Math.abs(vel.px) + Math.abs(vel.py);
+      if (total < INERTIA_MIN) { inertiaId = null; return; }
+
+      let changed = false;
+      if (Math.abs(vel.ox) > INERTIA_MIN || Math.abs(vel.oy) > INERTIA_MIN) {
+        currentViewState = {
+          ...currentViewState,
+          rotationOrbit: (currentViewState.rotationOrbit || 0) + vel.ox,
+          rotationX: clampRotX((currentViewState.rotationX || 0) + vel.oy)
+        };
+        changed = true;
+      }
+      if (Math.abs(vel.px) > INERTIA_MIN || Math.abs(vel.py) > INERTIA_MIN) {
+        const t = [...(currentViewState.target || [0,0,0])];
+        t[0] += vel.px; t[1] += vel.py;
+        currentViewState = {...currentViewState, target: t};
+        changed = true;
+      }
+      if (changed) pushView();
+      inertiaId = requestAnimationFrame(step);
+    }
+    inertiaId = requestAnimationFrame(step);
+  }
+
+  function stopInertia() {
+    if (inertiaId) { cancelAnimationFrame(inertiaId); inertiaId = null; }
+    vel = {ox: 0, oy: 0, px: 0, py: 0};
+  }
+
+  container.addEventListener('mousedown', e => {
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      e.preventDefault();
+      stopInertia();
+      drag = {x: e.clientX, y: e.clientY, btn: e.button};
+    }
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    e.preventDefault();
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+
+    if (e.shiftKey) {
+      const scale = Math.pow(2, currentViewState.zoom || 0);
+      const ps = PAN_SENS / Math.max(scale, 0.01);
+      const dpx = -dx * ps, dpy = -dy * ps;
+      const t = [...(currentViewState.target || [0,0,0])];
+      t[0] += dpx; t[1] += dpy;
+      currentViewState = {...currentViewState, target: t};
+      vel.px = dpx; vel.py = dpy;
+      vel.ox = 0; vel.oy = 0;
+    } else if (e.ctrlKey) {
+      const newZoom = clampZoom((currentViewState.zoom || 0) - dy * ZOOM_SENS * 3);
+      currentViewState = {...currentViewState, zoom: newZoom};
+      vel = {ox: 0, oy: 0, px: 0, py: 0};
+    } else {
+      const dox = -dx * ORBIT_SENS, doy = dy * ORBIT_SENS;
+      currentViewState = {
+        ...currentViewState,
+        rotationOrbit: (currentViewState.rotationOrbit || 0) + dox,
+        rotationX: clampRotX((currentViewState.rotationX || 0) + doy)
+      };
+      vel.ox = dox; vel.oy = doy;
+      vel.px = 0; vel.py = 0;
+    }
+    pushView();
+  });
+
+  window.addEventListener('mouseup', e => {
+    if (drag && (e.button === drag.btn)) {
+      drag = null;
+      startInertia();
+    }
+  });
+
+  container.addEventListener('wheel', e => {
+    e.preventDefault();
+    stopInertia();
+    const delta = -e.deltaY * ZOOM_SENS;
+    const newZoom = clampZoom((currentViewState.zoom || 0) + delta);
+    const zoomingIn = delta > 0;
+
+    const hit = deckgl.pickObject({x: e.offsetX, y: e.offsetY, radius: 20});
+    if (hit && hit.object && zoomingIn) {
+      const np = [hit.object.x, hit.object.y, hit.object.z || 0];
+      const t = [...(currentViewState.target || [0,0,0])];
+      const lerpFactor = 0.12;
+      t[0] += (np[0] - t[0]) * lerpFactor;
+      t[1] += (np[1] - t[1]) * lerpFactor;
+      t[2] += (np[2] - t[2]) * lerpFactor;
+      currentViewState = {...currentViewState, zoom: newZoom, target: t};
+    } else {
+      currentViewState = {...currentViewState, zoom: newZoom};
+    }
+    pushView();
+  }, {passive: false});
+
+  container.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
+  container.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Track mouse position for zoom-to-cursor
+  container.addEventListener('mousemove', e => {
+    lastMousePos = {x: e.offsetX, y: e.offsetY};
+  }, {passive: true});
+
+  // Numpad . or regular . — focus selected node (Blender convention)
+  window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if (e.key === '.' || e.code === 'NumpadDecimal') {
+      e.preventDefault();
+      if (selectedNode) {
+        const neighbors = edges.filter(edge => edge.source === selectedNode.id || edge.target === selectedNode.id);
+        let frameRadius = selectedNode.radius * 4;
+        if (neighbors.length > 0) {
+          let maxDist = 0;
+          for (const edge of neighbors) {
+            const other = nodes[edge.sourceIdx === nodeIndex[selectedNode.id] ? edge.targetIdx : edge.sourceIdx];
+            if (!other) continue;
+            const dx = other.x - selectedNode.x, dy = other.y - selectedNode.y, dz = (other.z||0) - (selectedNode.z||0);
+            maxDist = Math.max(maxDist, Math.sqrt(dx*dx + dy*dy + dz*dz));
+          }
+          frameRadius = Math.max(frameRadius, maxDist * 1.2);
+        }
+        const frameZoom = Math.log2(800 / Math.max(frameRadius, 1));
+        flyTo([selectedNode.x, selectedNode.y, selectedNode.z || 0], clampZoom(frameZoom), 300);
+      } else if (visibleNodes.length > 0) {
+        let sx = 0, sy = 0, sz = 0;
+        for (const n of visibleNodes) { sx += n.x; sy += n.y; sz += (n.z || 0); }
+        const c = visibleNodes.length;
+        flyTo([sx/c, sy/c, sz/c], null, 300);
+      }
+    }
+  });
+})();
 
 // ── Layer Building ─────────────────────────────────────────
 function buildLayers() {
@@ -374,47 +655,45 @@ function buildLayers() {
   const showNodeLabels = zoom > labelZoomThreshold;
   const showClusterLabels = zoom <= labelZoomThreshold;
 
+  const selId = selectedNode?.id;
+  const connectedIds = new Set();
+  if (selId) {
+    connectedIds.add(selId);
+    for (const e of edges) {
+      if (e.source === selId) connectedIds.add(nodes[e.targetIdx]?.id);
+      else if (e.target === selId) connectedIds.add(nodes[e.sourceIdx]?.id);
+    }
+  }
+  const hasSelection = connectedIds.size > 0;
+
   const layers = [];
 
   layers.push(new deck.LineLayer({
     id: 'edges',
     data: visibleEdges,
-    getSourcePosition: d => [nodes[d.sourceIdx].x, nodes[d.sourceIdx].y],
-    getTargetPosition: d => [nodes[d.targetIdx].x, nodes[d.targetIdx].y],
-    getColor: d => [255, 255, 255, Math.floor(d.weight * edgeOpacity * 255)],
-    getWidth: 1,
+    getSourcePosition: d => [nodes[d.sourceIdx].x, nodes[d.sourceIdx].y, nodes[d.sourceIdx].z || 0],
+    getTargetPosition: d => [nodes[d.targetIdx].x, nodes[d.targetIdx].y, nodes[d.targetIdx].z || 0],
+    getColor: d => {
+      if (hasSelection && (d.source === selId || d.target === selId)) {
+        return [100, 180, 255, Math.floor(Math.max(0.4, d.weight) * edgeOpacity * 255 * 3)];
+      }
+      if (hasSelection) return [255, 255, 255, Math.floor(d.weight * edgeOpacity * 60)];
+      return [255, 255, 255, Math.floor(d.weight * edgeOpacity * 255)];
+    },
+    getWidth: d => {
+      if (hasSelection && (d.source === selId || d.target === selId)) {
+        return 1 + d.weight * 5;
+      }
+      return 0.5 + d.weight * 3;
+    },
     widthMinPixels: 1,
+    widthUnits: 'common',
     pickable: false,
     updateTriggers: {
       getSourcePosition: [tickCounter],
-      getTargetPosition: [tickCounter]
-    }
-  }));
-
-  layers.push(new deck.ScatterplotLayer({
-    id: 'nodes',
-    data: visibleNodes,
-    getPosition: d => [d.x, d.y],
-    getRadius: d => d.radius,
-    getFillColor: d => {
-      if (searchResults.size > 0 && !searchResults.has(d.id)) {
-        return [...d.color, 40];
-      }
-      return [...d.color, 200];
-    },
-    getLineColor: d => d.pinned ? [255, 255, 100, 255] : [...d.color, 255],
-    getLineWidth: d => d.pinned ? 3 : 1,
-    lineWidthMinPixels: 1,
-    radiusUnits: 'common',
-    pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 40],
-    onClick: (info) => handleNodeClick(info),
-    onHover: (info) => handleNodeHover(info),
-    updateTriggers: {
-      getPosition: [tickCounter],
-      getLineColor: [pinVersion],
-      getFillColor: [searchResults.size, tickCounter]
+      getTargetPosition: [tickCounter],
+      getColor: [selId, edgeOpacity],
+      getWidth: [selId]
     }
   }));
 
@@ -422,18 +701,21 @@ function buildLayers() {
     layers.push(new deck.TextLayer({
       id: 'node-labels',
       data: visibleNodes,
-      getPosition: d => [d.x, d.y],
+      getPosition: d => {
+        const r = d.radius * sphereSize * Math.max(0.3, Math.min(1, Math.pow(2, (zoom + 1) * 0.5)));
+        return [d.x, d.y, (d.z || 0) + r + d.fontSize * 0.6];
+      },
       getText: d => d.wrappedName,
       getSize: d => d.fontSize,
       getColor: [255, 255, 255, 230],
       getTextAnchor: 'middle',
-      getAlignmentBaseline: 'center',
+      getAlignmentBaseline: 'bottom',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
       fontWeight: 600,
       sizeUnits: 'common',
       pickable: false,
       updateTriggers: {
-        getPosition: [tickCounter]
+        getPosition: [tickCounter, sphereSize, zoom]
       }
     }));
   }
@@ -442,7 +724,7 @@ function buildLayers() {
     layers.push(new deck.TextLayer({
       id: 'cluster-labels',
       data: clusterLabels,
-      getPosition: d => [d.x, d.y],
+      getPosition: d => [d.x, d.y, (d.z || 0) + 30],
       getText: d => d.text,
       getSize: 24,
       getColor: d => [...(d.color || [200, 200, 200]), 160],
@@ -455,6 +737,56 @@ function buildLayers() {
     }));
   }
 
+  layers.push(new deck.SimpleMeshLayer({
+    id: 'nodes',
+    data: visibleNodes,
+    mesh: SPHERE_MESH,
+    getPosition: d => [d.x, d.y, d.z || 0],
+    getScale: d => {
+      const zoomScale = Math.max(0.3, Math.min(1, Math.pow(2, (zoom + 1) * 0.5)));
+      const r = d.radius * sphereSize * zoomScale;
+      return [r, r, r];
+    },
+    getColor: d => {
+      if (searchResults.size > 0 && !searchResults.has(d.id)) return [...d.color, 40];
+      if (hasSelection && d.id === selId) return [255, 255, 100, 255];
+      if (hasSelection && connectedIds.has(d.id)) return [...d.color, 255];
+      if (hasSelection) return [...d.color, 50];
+      if (d.pinned) return [255, 255, 100, 255];
+      return [...d.color, 220];
+    },
+    sizeScale: 1,
+    pickable: true,
+    autoHighlight: true,
+    highlightColor: [255, 255, 255, 40],
+    onClick: (info) => handleNodeClick(info),
+    onHover: (info) => handleNodeHover(info),
+    updateTriggers: {
+      getPosition: [tickCounter],
+      getColor: [pinVersion, searchResults.size, tickCounter, selId],
+      getScale: [tickCounter, zoom, sphereSize]
+    }
+  }));
+
+  if (pivotVisible) {
+    const t = currentViewState.target || [0,0,0];
+    const scale = Math.pow(2, currentViewState.zoom || 0);
+    const pivotSize = Math.max(3, 8 / Math.max(scale, 0.01));
+    layers.push(new deck.ScatterplotLayer({
+      id: 'pivot-indicator',
+      data: [{position: t}],
+      getPosition: d => d.position,
+      getRadius: pivotSize,
+      getFillColor: [255, 255, 255, 80],
+      getLineColor: [255, 255, 255, 160],
+      getLineWidth: 1,
+      lineWidthMinPixels: 1,
+      stroked: true,
+      radiusUnits: 'common',
+      pickable: false
+    }));
+  }
+
   return layers;
 }
 
@@ -463,11 +795,12 @@ function updateVisibleNodes() {
   if (nodes.length <= renderBudget) {
     visibleNodeIndices = nodes.map((_, i) => i);
   } else {
-    const viewport = getViewportBounds();
+    const vp = getViewportCenter();
     const scored = nodes.map((n, i) => {
       let score = (n.connectionCount || 0);
-      if (n.x >= viewport.minX && n.x <= viewport.maxX &&
-          n.y >= viewport.minY && n.y <= viewport.maxY) {
+      const dx = n.x - vp.cx, dy = n.y - vp.cy, dz = (n.z || 0) - vp.cz;
+      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      if (dist < vp.radius) {
         score += 1000;
       }
       return {idx: i, score};
@@ -491,12 +824,14 @@ worker.onmessage = function(e) {
   const msg = e.data;
   if (msg.type === "tick") {
     const positions = msg.positions;
-    for (let i = 0; i < nodes.length && i * 2 + 1 < positions.length; i++) {
-      nodes[i].x = positions[i * 2];
-      nodes[i].y = positions[i * 2 + 1];
+    for (let i = 0; i < nodes.length && i * 3 + 2 < positions.length; i++) {
+      nodes[i].x = positions[i * 3];
+      nodes[i].y = positions[i * 3 + 1];
+      nodes[i].z = positions[i * 3 + 2];
     }
     tickCounter++;
     settled = false;
+    worker.postMessage({type: "frame"});
     requestRender();
   } else if (msg.type === "settled") {
     settled = true;
@@ -532,6 +867,13 @@ function getCurrentParams() {
 
 async function initGraph() {
   try {
+    const pinnedIds = new Set(nodes.filter(n => n.pinned).map(n => n.id));
+    const selectedId = selectedNode?.id;
+    const oldPositions = {};
+    for (const n of nodes) {
+      oldPositions[n.id] = {x: n.x, y: n.y, z: n.z || 0};
+    }
+
     const resp = await fetch('/api/graph');
     const data = await resp.json();
 
@@ -540,12 +882,15 @@ async function initGraph() {
       const radius = computeNodeRadius(n.name, conns);
       const color = yearToColor(n.year);
       const lines = wrapText(n.name, 12);
+      const old = oldPositions[n.id];
       return {
         ...n,
         radius,
-        x: 0, y: 0,
+        x: old ? old.x : 0,
+        y: old ? old.y : 0,
+        z: old ? old.z : 0,
         color,
-        pinned: false,
+        pinned: pinnedIds.has(n.id),
         connectionCount: conns,
         fontSize: Math.min(13, 10 + Math.floor(conns / 3)),
         wrappedName: lines.join('\n')
@@ -554,6 +899,10 @@ async function initGraph() {
 
     nodeIndex = {};
     nodes.forEach((n, i) => nodeIndex[n.id] = i);
+
+    if (selectedId && nodeIndex[selectedId] !== undefined) {
+      selectedNode = nodes[nodeIndex[selectedId]];
+    }
 
     edges = data.links.map(l => ({
       source: l.source,
@@ -574,6 +923,12 @@ async function initGraph() {
       width: window.innerWidth,
       height: window.innerHeight
     });
+
+    for (const n of nodes) {
+      if (n.pinned) {
+        worker.postMessage({type: "pin", id: n.id, x: n.x, y: n.y, z: n.z || 0});
+      }
+    }
 
     updateVisibleNodes();
     updateStatusBar();
@@ -623,7 +978,7 @@ function connectSSE() {
     if (data.stats) updateStatsDisplay(data.stats);
     showStatusMessage('Expansion complete.');
     setExpansionRunning(false);
-    await initGraph();
+    await syncGraph();
   });
 
   source.addEventListener('stopped', async (e) => {
@@ -631,7 +986,7 @@ function connectSSE() {
     if (data.stats) updateStatsDisplay(data.stats);
     showStatusMessage('Expansion stopped.');
     setExpansionRunning(false);
-    await initGraph();
+    await syncGraph();
   });
 
   source.addEventListener('stats', (e) => {
@@ -667,6 +1022,7 @@ function addNodesFromExpansion(newNodes, newEdges) {
       radius,
       x: nodes.length > 0 ? nodes[0].x + (Math.random() - 0.5) * 200 : 0,
       y: nodes.length > 0 ? nodes[0].y + (Math.random() - 0.5) * 200 : 0,
+      z: nodes.length > 0 ? (nodes[0].z || 0) + (Math.random() - 0.5) * 200 : 0,
       color,
       pinned: false,
       connectionCount: conns,
@@ -755,16 +1111,35 @@ function handleNodeClick(info) {
   if (!info.object) return;
   const node = info.object;
   const now = Date.now();
+  const nodePos = [node.x, node.y, node.z || 0];
 
   if (lastClickId === node.id && now - lastClickTime < 400) {
+    // Double-click: unpin + fly to node and frame its neighborhood
     node.pinned = false;
     worker.postMessage({type: "unpin", id: node.id});
     pinVersion++;
+    selectedNode = node;
+
+    const neighbors = edges.filter(e => e.source === node.id || e.target === node.id);
+    let frameRadius = node.radius * 4;
+    for (const edge of neighbors) {
+      const other = nodes[edge.sourceIdx === nodeIndex[node.id] ? edge.targetIdx : edge.sourceIdx];
+      if (!other) continue;
+      const dx = other.x - node.x, dy = other.y - node.y, dz = (other.z||0) - (node.z||0);
+      frameRadius = Math.max(frameRadius, Math.sqrt(dx*dx + dy*dy + dz*dz) * 1.2);
+    }
+    const frameZoom = Math.max(currentViewState.minZoom, Math.min(currentViewState.maxZoom,
+      Math.log2(800 / Math.max(frameRadius, 1))));
+    flyTo(nodePos, frameZoom, 300);
     lastClickId = null;
   } else {
+    // Single click: pin + set as orbit pivot
     node.pinned = true;
-    worker.postMessage({type: "pin", id: node.id, x: node.x, y: node.y});
+    worker.postMessage({type: "pin", id: node.id, x: node.x, y: node.y, z: node.z || 0});
     pinVersion++;
+    selectedNode = node;
+
+    flyTo(nodePos, null, 300);
 
     if (!node.desc) {
       ensureDescription(node).then(desc => {
@@ -780,6 +1155,89 @@ function handleNodeClick(info) {
 
   lastClickTime = now;
   lastClickId = node.id;
+
+  showNodePanel(node);
+}
+
+// ── Node Panel ────────────────────────────────────────────
+function showNodePanel(node) {
+  const panel = document.getElementById('node-panel');
+  document.getElementById('np-name').textContent = node.name;
+
+  const yearText = node.year != null
+    ? (node.year > 0 ? node.year + ' AD' : Math.abs(node.year) + ' BC')
+    : 'Unknown';
+  document.getElementById('np-year').textContent = yearText;
+
+  const conns = edges.filter(e => e.source === node.id || e.target === node.id).length;
+  document.getElementById('np-stats').textContent = conns + ' connection' + (conns !== 1 ? 's' : '') +
+    (node.pinned ? ' · Pinned' : '');
+
+  const descEl = document.getElementById('np-desc');
+  if (node.desc && node.desc !== 'Loading...') {
+    descEl.textContent = node.desc;
+  } else {
+    descEl.textContent = 'Loading description...';
+    ensureDescription(node).then(desc => {
+      if (selectedNode === node) {
+        descEl.textContent = desc || 'No description available.';
+      }
+    });
+  }
+
+  document.getElementById('np-unpin-btn').textContent = node.pinned ? 'Unpin' : 'Pin';
+  panel.style.display = 'block';
+}
+
+function closeNodePanel() {
+  document.getElementById('node-panel').style.display = 'none';
+  selectedNode = null;
+  requestRender();
+}
+
+function unpinSelectedNode() {
+  if (!selectedNode) return;
+  if (selectedNode.pinned) {
+    selectedNode.pinned = false;
+    worker.postMessage({type: "unpin", id: selectedNode.id});
+  } else {
+    selectedNode.pinned = true;
+    worker.postMessage({type: "pin", id: selectedNode.id, x: selectedNode.x, y: selectedNode.y, z: selectedNode.z || 0});
+  }
+  pinVersion++;
+  document.getElementById('np-unpin-btn').textContent = selectedNode.pinned ? 'Unpin' : 'Pin';
+  requestRender();
+}
+
+async function expandFromNode() {
+  if (!selectedNode) return;
+  const backend = document.getElementById('backend-select').value;
+  const count = parseInt(document.getElementById('count-input').value) || 20;
+  const rounds = 1;
+
+  try {
+    const resp = await fetch('/api/expand', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        seed: selectedNode.name,
+        backend,
+        rounds,
+        count,
+        system_prompt: document.getElementById('system-prompt').value,
+        user_prompt: document.getElementById('user-prompt').value
+      })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      setExpansionRunning(true);
+      showStatusMessage('Expanding from "' + selectedNode.name + '"...');
+    } else {
+      showStatusMessage('Error: ' + data.error, 'error');
+    }
+  } catch (err) {
+    showStatusMessage('Request failed: ' + err.message, 'error');
+  }
 }
 
 // ── Search ─────────────────────────────────────────────────
@@ -804,9 +1262,10 @@ function computeClusterLabels() {
   for (const n of visibleNodes) {
     const c = n.cluster != null ? n.cluster : -1;
     if (c < 0) continue;
-    if (!groups[c]) groups[c] = {sumX: 0, sumY: 0, count: 0, cluster: c};
+    if (!groups[c]) groups[c] = {sumX: 0, sumY: 0, sumZ: 0, count: 0, cluster: c};
     groups[c].sumX += n.x;
     groups[c].sumY += n.y;
+    groups[c].sumZ += (n.z || 0);
     groups[c].count++;
   }
 
@@ -816,6 +1275,7 @@ function computeClusterLabels() {
       text: g.label || ('Cluster ' + g.cluster),
       x: g.sumX / g.count,
       y: g.sumY / g.count,
+      z: g.sumZ / g.count,
       color: [200, 200, 200]
     }));
 }
@@ -896,6 +1356,12 @@ function setupSliders() {
   document.getElementById('edgeopacity').addEventListener('input', (e) => {
     edgeOpacity = parseFloat(e.target.value);
     document.getElementById('v-edgeopacity').textContent = edgeOpacity;
+    requestRender();
+  });
+
+  document.getElementById('spheresize').addEventListener('input', (e) => {
+    sphereSize = parseFloat(e.target.value);
+    document.getElementById('v-spheresize').textContent = sphereSize;
     requestRender();
   });
 }
@@ -1057,7 +1523,7 @@ function showStatusMessage(msg, level) {
 const SETTINGS_KEY = 'knowledge-tree-settings';
 const SETTING_IDS = [
   'charge', 'linkdist', 'linkstr', 'timepull', 'cluster', 'decay', 'collision',
-  'budget', 'labelzoom', 'edgeopacity',
+  'budget', 'labelzoom', 'edgeopacity', 'spheresize',
   'rounds-input', 'count-input',
   'system-prompt', 'user-prompt',
   'auto-name-toggle'
@@ -1092,6 +1558,7 @@ function loadSettings() {
     renderBudget = parseInt(document.getElementById('budget').value);
     labelZoomThreshold = parseFloat(document.getElementById('labelzoom').value);
     edgeOpacity = parseFloat(document.getElementById('edgeopacity').value);
+    sphereSize = parseFloat(document.getElementById('spheresize').value);
     autoNameEnabled = document.getElementById('auto-name-toggle').checked;
   } catch (_) {}
 }
@@ -1116,6 +1583,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('search-input').addEventListener('input', (e) => {
     handleSearch(e.target.value);
+  });
+
+  document.getElementById('search-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const query = e.target.value.toLowerCase().trim();
+      if (!query) return;
+      const match = nodes.find(n => n.name.toLowerCase() === query) ||
+                    nodes.find(n => n.name.toLowerCase().includes(query));
+      if (match) {
+        selectedNode = match;
+        flyTo([match.x, match.y, match.z || 0], 2, 400);
+        showNodePanel(match);
+        e.target.blur();
+      } else {
+        showStatusMessage('No node found for "' + query + '"', 'warn');
+      }
+    }
   });
 
   document.getElementById('auto-name-toggle').addEventListener('change', (e) => {

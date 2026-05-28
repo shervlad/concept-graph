@@ -1,20 +1,22 @@
 importScripts("https://cdn.jsdelivr.net/npm/d3-dispatch@3/dist/d3-dispatch.min.js");
 importScripts("https://cdn.jsdelivr.net/npm/d3-quadtree@3/dist/d3-quadtree.min.js");
+importScripts("https://cdn.jsdelivr.net/npm/d3-octree@1/dist/d3-octree.min.js");
+importScripts("https://cdn.jsdelivr.net/npm/d3-binarytree@1/dist/d3-binarytree.min.js");
 importScripts("https://cdn.jsdelivr.net/npm/d3-timer@3/dist/d3-timer.min.js");
-importScripts("https://cdn.jsdelivr.net/npm/d3-force@3/dist/d3-force.min.js");
+importScripts("https://cdn.jsdelivr.net/npm/d3-force-3d@3/dist/d3-force-3d.min.js");
 
 let simulation = null;
 let nodes = [];
 let edges = [];
 let nodeIndex = {};
 let params = {
-  charge: -120,
-  linkDistance: 80,
-  linkStrength: 0.3,
-  timePull: 0.15,
-  clusterGravity: 0.08,
+  charge: -250,
+  linkDistance: 120,
+  linkStrength: 0.2,
+  timePull: 0.1,
+  clusterGravity: 0.05,
   velocityDecay: 0.4,
-  collisionMultiplier: 1.2
+  collisionMultiplier: 1.5
 };
 let width = 1920, height = 1080;
 let domainSet = [];
@@ -53,12 +55,13 @@ function rebuildNodeIndex() {
 function setupSimulation() {
   if (simulation) simulation.stop();
 
-  simulation = d3.forceSimulation(nodes)
+  simulation = d3.forceSimulation(nodes, 3)
     .force("charge", d3.forceManyBody().strength(params.charge))
     .force("link", d3.forceLink(edges).id(d => d.id)
       .distance(params.linkDistance).strength(params.linkStrength))
     .force("x", d3.forceX(n => yearToX(n)).strength(params.timePull))
-    .force("y", d3.forceY(n => domainToY(n)).strength(params.clusterGravity))
+    .force("y", d3.forceY(0).strength(0.01))
+    .force("z", d3.forceZ(n => domainToY(n)).strength(params.clusterGravity))
     .force("collide", d3.forceCollide().radius(n => n.radius * params.collisionMultiplier))
     .velocityDecay(params.velocityDecay)
     .on("tick", onTick)
@@ -66,10 +69,11 @@ function setupSimulation() {
 }
 
 function onTick() {
-  const positions = new Float32Array(nodes.length * 2);
+  const positions = new Float32Array(nodes.length * 3);
   for (let i = 0; i < nodes.length; i++) {
-    positions[i * 2] = nodes[i].x;
-    positions[i * 2 + 1] = nodes[i].y;
+    positions[i * 3] = nodes[i].x;
+    positions[i * 3 + 1] = nodes[i].y;
+    positions[i * 3 + 2] = nodes[i].z || 0;
   }
 
   const now = performance.now();
@@ -112,7 +116,7 @@ function handleAdd(msg) {
   simulation.nodes(nodes);
   simulation.force("link").links(edges);
   simulation.force("x", d3.forceX(n => yearToX(n)).strength(params.timePull));
-  simulation.force("y", d3.forceY(n => domainToY(n)).strength(params.clusterGravity));
+  simulation.force("z", d3.forceZ(n => domainToY(n)).strength(params.clusterGravity));
   simulation.force("collide").radius(n => n.radius * params.collisionMultiplier);
   simulation.alpha(0.3).restart();
 }
@@ -131,7 +135,7 @@ function handleRemove(msg) {
   simulation.nodes(nodes);
   simulation.force("link").links(edges);
   simulation.force("x", d3.forceX(n => yearToX(n)).strength(params.timePull));
-  simulation.force("y", d3.forceY(n => domainToY(n)).strength(params.clusterGravity));
+  simulation.force("z", d3.forceZ(n => domainToY(n)).strength(params.clusterGravity));
   simulation.force("collide").radius(n => n.radius * params.collisionMultiplier);
   simulation.alpha(0.3).restart();
 }
@@ -155,7 +159,7 @@ function handleParams(msg) {
   }
   if (msg.clusterGravity !== undefined) {
     params.clusterGravity = msg.clusterGravity;
-    simulation.force("y").strength(msg.clusterGravity);
+    simulation.force("z").strength(msg.clusterGravity);
   }
   if (msg.velocityDecay !== undefined) {
     params.velocityDecay = msg.velocityDecay;
@@ -173,6 +177,7 @@ function handlePin(msg) {
   if (idx !== undefined) {
     nodes[idx].fx = msg.x;
     nodes[idx].fy = msg.y;
+    nodes[idx].fz = msg.z;
     simulation.alpha(0.1).restart();
   }
 }
@@ -182,6 +187,7 @@ function handleUnpin(msg) {
   if (idx !== undefined) {
     nodes[idx].fx = null;
     nodes[idx].fy = null;
+    nodes[idx].fz = null;
     simulation.alpha(0.1).restart();
   }
 }
@@ -201,7 +207,7 @@ self.onmessage = function(e) {
       if (simulation) {
         rebuildDomainSet();
         simulation.force("x", d3.forceX(n => yearToX(n)).strength(params.timePull));
-        simulation.force("y", d3.forceY(n => domainToY(n)).strength(params.clusterGravity));
+        simulation.force("z", d3.forceZ(n => domainToY(n)).strength(params.clusterGravity));
         simulation.alpha(0.3).restart();
       }
       break;

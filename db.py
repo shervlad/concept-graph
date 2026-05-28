@@ -203,6 +203,13 @@ class GraphDB:
         ).fetchall()
         return {r["id"]: r["name"] for r in rows}
 
+    def find_node_id_by_name(self, name: str):
+        conn = self._get_read_conn()
+        row = conn.execute(
+            "SELECT id FROM nodes WHERE LOWER(name) = LOWER(?)", (name,)
+        ).fetchone()
+        return row[0] if row else None
+
     def get_least_expanded(self, expanded_set: set, n: int = 5) -> list:
         conn = self._get_read_conn()
         if expanded_set:

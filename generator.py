@@ -20,8 +20,8 @@ BACKENDS = {
 SYSTEM_PROMPT = "You list related knowledge concepts. One concept per line."
 
 
-def _build_user_prompt(focal: str, existing_names: list[str], count: int = 20) -> str:
-    prompt = (
+def _build_user_prompt(focal: str, count: int = 20) -> str:
+    return (
         f'List {count} concepts related to "{focal}".\n'
         f'One line per concept: name, year, weight\n'
         f'where name is the name of the concept, year is the year humanity came up with this concept '
@@ -29,10 +29,6 @@ def _build_user_prompt(focal: str, existing_names: list[str], count: int = 20) -
         f'that represents how related this concept is to "{focal}".\n'
         f'Output ONLY the lines, nothing else.'
     )
-    if existing_names:
-        skip = ", ".join(existing_names[:200])
-        prompt += f'\nSkip these: {skip}'
-    return prompt
 
 
 def _parse_text_concepts(text: str) -> list[dict]:
@@ -162,7 +158,6 @@ async def call_llm(prompt: str, backend: str = "openai", system_prompt: str = No
 
 async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, system_prompt: str = None, user_prompt: str = None) -> dict:
     existing_ids = set(db.get_node_ids())
-    existing_names = list(db.get_node_names_by_ids(list(existing_ids)).values())
     focal_name = db.get_node_names_by_ids([focal]).get(focal, focal)
 
     seed_node = None
@@ -173,10 +168,8 @@ async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, 
 
     if user_prompt:
         prompt = user_prompt.replace("{N}", str(count)).replace("{X}", focal_name)
-        if existing_names:
-            prompt += "\nSkip these: " + ", ".join(existing_names[:200])
     else:
-        prompt = _build_user_prompt(focal_name, existing_names, count)
+        prompt = _build_user_prompt(focal_name, count)
 
     log.info(f"Expanding '{focal}' via {backend} (asking for {count} concepts)")
     raw = await call_llm(prompt, backend, system_prompt=system_prompt)
@@ -190,15 +183,19 @@ async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, 
         name = concept.get("name")
         if not name:
             continue
-        nid = _make_id(name, existing_ids)
-        year = concept.get("year") if isinstance(concept.get("year"), int) else None
-        weight = max(0.0, min(1.0, float(concept.get("weight", 0.5))))
 
-        node = {"id": nid, "name": name, "year": year, "desc": ""}
-        is_new = db.add_node(node)
-        if is_new:
+        existing_nid = db.find_node_id_by_name(name)
+        if existing_nid:
+            nid = existing_nid
+        else:
+            nid = _make_id(name, existing_ids)
+            year = concept.get("year") if isinstance(concept.get("year"), int) else None
+            node = {"id": nid, "name": name, "year": year, "desc": ""}
+            db.add_node(node)
             new_nodes.append(node)
             existing_ids.add(nid)
+
+        weight = max(0.0, min(1.0, float(concept.get("weight", 0.5))))
         edge = {"source": focal, "target": nid, "weight": weight}
         if db.add_edge(edge):
             new_edges.append(edge)

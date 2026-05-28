@@ -43,7 +43,6 @@
   }
   #tooltip .tt-name { font-size: 15px; font-weight: 600; color: #fff; }
   #tooltip .tt-year { font-size: 12px; color: #6af; margin-top: 2px; }
-  #tooltip .tt-domain { font-size: 11px; color: #999; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
   #tooltip .tt-desc { font-size: 12px; color: #bbb; margin-top: 6px; line-height: 1.4; }
 
   #search {
@@ -179,8 +178,16 @@
     <select id="backend-select"></select>
   </div>
   <div class="control-group">
+    <label>System Prompt</label>
+    <textarea id="system-prompt" rows="3" style="width:100%;font-size:12px;resize:vertical;background:rgba(15,15,25,0.8);border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:5px 8px;color:#fff;outline:none;">You list related knowledge concepts. Output ONLY valid JSON.</textarea>
+  </div>
+  <div class="control-group">
     <label>Rounds <span style="font-size:10px;color:#666">(0 = unlimited)</span></label>
     <input type="number" id="rounds-input" value="3" min="0" max="100">
+  </div>
+  <div class="control-group">
+    <label>Concepts per round</label>
+    <input type="number" id="count-input" value="20" min="1" max="100">
   </div>
   <div style="margin-top: 8px;">
     <button class="btn" id="expand-btn" onclick="startExpansion()">Start</button>
@@ -210,8 +217,6 @@
 let nodes = [];
 let edges = [];
 let nodeIndex = {};
-let domains = {};
-
 let visibleNodes = [];
 let visibleEdges = [];
 let visibleNodeIndices = [];
@@ -246,13 +251,6 @@ let lastClickTime = 0;
 let lastClickId = null;
 
 // ── Utilities ──────────────────────────────────────────────
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return [r, g, b];
-}
-
 function wrapText(text, maxChars) {
   const words = text.split(/\s+/);
   const lines = [];
@@ -283,25 +281,35 @@ function computeNodeRadius(name, connectionCount) {
   return Math.max(15, Math.min(50, radius));
 }
 
-function generateDomainColor(key) {
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = ((hash << 5) - hash) + key.charCodeAt(i);
-    hash |= 0;
+function hslToRgb(h, s, l) {
+  h /= 360;
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
   }
-  const hue = Math.abs(hash) % 360;
-  return hslToHex(hue, 65, 60);
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }
 
-function hslToHex(h, s, l) {
-  s /= 100; l /= 100;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n) => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color).toString(16).padStart(2, '0');
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
+function yearToColor(year) {
+  if (year == null) return [150, 150, 150];
+  const minYear = -8000, maxYear = 2030;
+  const t = Math.max(0, Math.min(1, (year - minYear) / (maxYear - minYear)));
+  const hue = (1 - t) * 0 + t * 270;
+  return hslToRgb(hue, 0.65, 0.55);
 }
 
 function getViewportBounds() {
@@ -316,11 +324,7 @@ function getViewportBounds() {
 }
 
 function getNodeColor(node) {
-  const domainKey = (node.domains || [])[0];
-  if (domainKey && domains[domainKey]) {
-    return hexToRgb(domains[domainKey].color);
-  }
-  return [150, 150, 150];
+  return yearToColor(node.year);
 }
 
 // ── Deck.gl Setup ──────────────────────────────────────────
@@ -517,15 +521,10 @@ async function initGraph() {
     const resp = await fetch('/api/graph');
     const data = await resp.json();
 
-    domains = data.domains || {};
-
     nodes = data.nodes.map((n, i) => {
       const conns = data.links.filter(l => l.source === n.id || l.target === n.id).length;
       const radius = computeNodeRadius(n.name, conns);
-      const domainKey = (n.domains || [])[0];
-      const color = domainKey && domains[domainKey]
-        ? hexToRgb(domains[domainKey].color)
-        : [150, 150, 150];
+      const color = yearToColor(n.year);
       const lines = wrapText(n.name, 12);
       return {
         ...n,
@@ -554,7 +553,7 @@ async function initGraph() {
       type: "init",
       nodes: nodes.map(n => ({
         id: n.id, x: n.x, y: n.y, radius: n.radius,
-        year: n.year, domain: (n.domains || [])[0] || "unknown"
+        year: n.year, domain: "unknown"
       })),
       edges: edges.map(e => ({source: e.source, target: e.target, weight: e.weight})),
       params: getCurrentParams(),
@@ -630,15 +629,7 @@ function addNodesFromExpansion(newNodes, newEdges) {
 
     const conns = newEdges.filter(e => e.source === n.id || e.target === n.id).length;
     const radius = computeNodeRadius(n.name, conns);
-    const domainKey = (n.domains || [])[0];
-
-    if (domainKey && !domains[domainKey]) {
-      domains[domainKey] = {color: generateDomainColor(domainKey), label: domainKey.replace(/_/g, ' ')};
-    }
-
-    const color = domainKey && domains[domainKey]
-      ? hexToRgb(domains[domainKey].color)
-      : [150, 150, 150];
+    const color = yearToColor(n.year);
     const lines = wrapText(n.name, 12);
 
     const idx = nodes.length;
@@ -658,7 +649,7 @@ function addNodesFromExpansion(newNodes, newEdges) {
 
     workerNodes.push({
       id: n.id, x: node.x, y: node.y, radius,
-      year: n.year, domain: domainKey || "unknown"
+      year: n.year, domain: "unknown"
     });
   }
 
@@ -682,18 +673,51 @@ function addNodesFromExpansion(newNodes, newEdges) {
 }
 
 // ── Interactions ───────────────────────────────────────────
+async function ensureDescription(node) {
+  if (node.desc) return node.desc;
+  const backend = document.getElementById('backend-select').value;
+  const system_prompt = document.getElementById('system-prompt').value;
+  node.desc = 'Loading...';
+  try {
+    const resp = await fetch('/api/describe', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id: node.id, backend, system_prompt})
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      node.desc = data.desc;
+    } else {
+      node.desc = '';
+    }
+  } catch (e) {
+    node.desc = '';
+  }
+  return node.desc || '';
+}
+
 function handleNodeHover(info) {
   const tooltip = document.getElementById('tooltip');
   if (info.object) {
     const n = info.object;
     tooltip.innerHTML =
       '<div class="tt-name">' + escapeHtml(n.name) + '</div>' +
-      '<div class="tt-year">' + (n.year > 0 ? n.year + ' AD' : Math.abs(n.year) + ' BC') + '</div>' +
-      '<div class="tt-domain">' + (n.domains || []).join(' • ') + '</div>' +
+      '<div class="tt-year">' + (n.year != null ? (n.year > 0 ? n.year + ' AD' : Math.abs(n.year) + ' BC') : 'Unknown') + '</div>' +
       (n.desc ? '<div class="tt-desc">' + escapeHtml(n.desc) + '</div>' : '');
     tooltip.style.left = (info.x + 16) + 'px';
     tooltip.style.top = (info.y + 16) + 'px';
     tooltip.style.display = 'block';
+
+    if (!n.desc) {
+      ensureDescription(n).then(desc => {
+        if (desc && tooltip.style.display === 'block') {
+          tooltip.innerHTML =
+            '<div class="tt-name">' + escapeHtml(n.name) + '</div>' +
+            '<div class="tt-year">' + (n.year != null ? (n.year > 0 ? n.year + ' AD' : Math.abs(n.year) + ' BC') : 'Unknown') + '</div>' +
+            '<div class="tt-desc">' + escapeHtml(desc) + '</div>';
+        }
+      });
+    }
   } else {
     tooltip.style.display = 'none';
   }
@@ -745,30 +769,31 @@ function handleSearch(query) {
 function computeClusterLabels() {
   const groups = {};
   for (const n of visibleNodes) {
-    const d = (n.domains || [])[0];
-    if (!d) continue;
-    if (!groups[d]) groups[d] = {sumX: 0, sumY: 0, count: 0, domain: d};
-    groups[d].sumX += n.x;
-    groups[d].sumY += n.y;
-    groups[d].count++;
+    const c = n.cluster != null ? n.cluster : -1;
+    if (c < 0) continue;
+    if (!groups[c]) groups[c] = {sumX: 0, sumY: 0, count: 0, cluster: c};
+    groups[c].sumX += n.x;
+    groups[c].sumY += n.y;
+    groups[c].count++;
   }
 
   clusterLabels = Object.values(groups)
     .filter(g => g.count >= 3)
     .map(g => ({
-      text: domains[g.domain]?.label || g.domain.replace(/_/g, ' '),
+      text: g.label || ('Cluster ' + g.cluster),
       x: g.sumX / g.count,
       y: g.sumY / g.count,
-      color: domains[g.domain] ? hexToRgb(domains[g.domain].color) : [200, 200, 200]
+      color: [200, 200, 200]
     }));
 }
 
 async function nameClustersByLLM() {
   const groups = {};
   for (const n of visibleNodes) {
-    const d = (n.domains || [])[0] || 'unknown';
-    if (!groups[d]) groups[d] = {names: []};
-    groups[d].names.push(n.name);
+    const c = n.cluster != null ? n.cluster : -1;
+    if (c < 0) continue;
+    if (!groups[c]) groups[c] = {names: []};
+    groups[c].names.push(n.name);
   }
 
   const clusterList = Object.values(groups).filter(g => g.names.length >= 3);
@@ -779,7 +804,7 @@ async function nameClustersByLLM() {
     const resp = await fetch('/api/cluster-names', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({clusters: clusterList, backend})
+      body: JSON.stringify({clusters: clusterList, backend, system_prompt: document.getElementById('system-prompt').value})
     });
 
     if (resp.ok) {
@@ -847,6 +872,7 @@ async function startExpansion() {
   const seed = document.getElementById('seed-input').value.trim();
   const backend = document.getElementById('backend-select').value;
   const rounds = parseInt(document.getElementById('rounds-input').value) || 0;
+  const count = parseInt(document.getElementById('count-input').value) || 20;
 
   if (!seed) { showStatusMessage('Enter a seed concept', 'warn'); return; }
 
@@ -854,7 +880,7 @@ async function startExpansion() {
     const resp = await fetch('/api/expand', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({seed, backend, rounds})
+      body: JSON.stringify({seed, backend, rounds, count, system_prompt: document.getElementById('system-prompt').value})
     });
 
     const data = await resp.json();

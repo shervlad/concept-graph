@@ -1,28 +1,13 @@
 import sqlite3
-import json
-import hashlib
 import threading
 from collections import defaultdict, deque
-from functools import lru_cache
-
-
-@lru_cache(maxsize=256)
-def _domain_color(key: str) -> str:
-    h = int(hashlib.md5(key.encode()).hexdigest()[:8], 16) % 360
-    s, l = 0.65, 0.60
-    c = (1 - abs(2 * l - 1)) * s
-    x = c * (1 - abs((h / 60) % 2 - 1))
-    m = l - c / 2
-    if h < 60:    r, g, b = c, x, 0
-    elif h < 120: r, g, b = x, c, 0
-    elif h < 180: r, g, b = 0, c, x
-    elif h < 240: r, g, b = 0, x, c
-    elif h < 300: r, g, b = x, 0, c
-    else:         r, g, b = c, 0, x
-    return "#{:02x}{:02x}{:02x}".format(round((r+m)*255), round((g+m)*255), round((b+m)*255))
 
 
 class GraphDB:
+    @property
+    def path(self):
+        return self._path
+
     def __init__(self, path="knowledge.db"):
         self._path = path
         self._lock = threading.Lock()
@@ -34,7 +19,6 @@ class GraphDB:
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.execute("PRAGMA foreign_keys=ON")
         self._conn.row_factory = sqlite3.Row
-        self._known_domains = set()
         self._init_tables()
 
     def __enter__(self):
@@ -62,7 +46,6 @@ class GraphDB:
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 year INTEGER,
-                domains TEXT DEFAULT '[]',
                 desc TEXT DEFAULT '',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -74,27 +57,15 @@ class GraphDB:
                 FOREIGN KEY (source) REFERENCES nodes(id),
                 FOREIGN KEY (target) REFERENCES nodes(id)
             );
-            CREATE TABLE IF NOT EXISTS domains (
-                key TEXT PRIMARY KEY,
-                label TEXT NOT NULL,
-                color TEXT NOT NULL
-            );
             CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source);
             CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target);
         """)
-        for row in self._conn.execute("SELECT key FROM domains").fetchall():
-            self._known_domains.add(row[0])
 
     def add_node(self, node: dict) -> bool:
         with self._lock:
-            domains = node.get("domains", [])
-            if isinstance(domains, str):
-                domains = [domains]
-            for d in domains:
-                self._ensure_domain(d)
             cursor = self._conn.execute(
-                "INSERT OR IGNORE INTO nodes (id, name, year, domains, desc) VALUES (?, ?, ?, ?, ?)",
-                (node["id"], node["name"], node.get("year"), json.dumps(domains), node.get("desc", ""))
+                "INSERT OR IGNORE INTO nodes (id, name, year, desc) VALUES (?, ?, ?, ?)",
+                (node["id"], node["name"], node.get("year"), node.get("desc", ""))
             )
             self._conn.commit()
             return cursor.rowcount > 0
@@ -114,17 +85,6 @@ class GraphDB:
             )
             self._conn.commit()
             return cursor.rowcount > 0
-
-    def _ensure_domain(self, key: str):
-        if key in self._known_domains:
-            return
-        label = key.replace("_", " ").title()
-        color = _domain_color(key)
-        self._conn.execute(
-            "INSERT OR IGNORE INTO domains (key, label, color) VALUES (?, ?, ?)",
-            (key, label, color)
-        )
-        self._known_domains.add(key)
 
     def get_graph(self, limit: int = 500, center_id: str = None) -> dict:
         conn = self._get_read_conn()
@@ -157,18 +117,13 @@ class GraphDB:
         else:
             edges = []
 
-        domains = {r["key"]: {"color": r["color"], "label": r["label"]}
-                   for r in conn.execute("SELECT * FROM domains").fetchall()}
-
         counts = conn.execute(
             "SELECT (SELECT COUNT(*) FROM nodes) as n, (SELECT COUNT(*) FROM edges) as e"
         ).fetchone()
 
         return {
-            "domains": domains,
             "nodes": [
-                {"id": r["id"], "name": r["name"], "year": r["year"],
-                 "domains": json.loads(r["domains"]), "desc": r["desc"]}
+                {"id": r["id"], "name": r["name"], "year": r["year"], "desc": r["desc"]}
                 for r in node_rows
             ],
             "links": [
@@ -214,6 +169,20 @@ class GraphDB:
             "SELECT * FROM nodes WHERE id IN ({})".format(ph), result_ids
         ).fetchall()
 
+    def get_node(self, node_id: str):
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT id, name, year, desc FROM nodes WHERE id=?", (node_id,)
+            ).fetchone()
+            if not row:
+                return None
+            return {"id": row[0], "name": row[1], "year": row[2], "desc": row[3]}
+
+    def update_desc(self, node_id: str, desc: str):
+        with self._lock:
+            self._conn.execute("UPDATE nodes SET desc=? WHERE id=?", (desc, node_id))
+            self._conn.commit()
+
     def get_node_ids(self) -> set:
         conn = self._get_read_conn()
         return {r[0] for r in conn.execute("SELECT id FROM nodes").fetchall()}
@@ -256,42 +225,22 @@ class GraphDB:
         conn = self._get_read_conn()
         row = conn.execute("""
             SELECT (SELECT COUNT(*) FROM nodes) as n,
-                   (SELECT COUNT(*) FROM edges) as e,
-                   (SELECT COUNT(*) FROM domains) as d
+                   (SELECT COUNT(*) FROM edges) as e
         """).fetchone()
-        return {"nodes": row[0], "edges": row[1], "domains": row[2]}
+        return {"nodes": row[0], "edges": row[1]}
 
     def import_json(self, data: dict):
         with self._lock:
-            explicit_domains = data.get("domains", {})
-            if explicit_domains:
-                self._conn.executemany(
-                    "INSERT OR REPLACE INTO domains (key, label, color) VALUES (?, ?, ?)",
-                    ((k, v["label"], v["color"]) for k, v in explicit_domains.items())
-                )
-                self._known_domains.update(explicit_domains)
-
             node_rows = []
             for node in data.get("nodes", []):
-                if "domains" in node:
-                    domains = node["domains"]
-                elif "domain" in node:
-                    domains = [node["domain"]]
-                else:
-                    domains = []
-                if isinstance(domains, str):
-                    domains = [domains]
-                for d in domains:
-                    if d not in explicit_domains:
-                        self._ensure_domain(d)
                 node_rows.append((
                     node["id"], node["name"], node.get("year"),
-                    json.dumps(domains), node.get("desc", "")
+                    node.get("desc", "")
                 ))
 
             if node_rows:
                 self._conn.executemany(
-                    "INSERT OR IGNORE INTO nodes (id, name, year, domains, desc) VALUES (?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO nodes (id, name, year, desc) VALUES (?, ?, ?, ?)",
                     node_rows
                 )
 

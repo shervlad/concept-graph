@@ -1,0 +1,1653 @@
+{
+  "nodes": [
+    {
+      "id": "counting",
+      "name": "Counting",
+      "year": -8000,
+      "desc": "Systematic enumeration using tally marks and tokens"
+    },
+    {
+      "id": "writing",
+      "name": "Writing",
+      "year": -3200,
+      "desc": "System of visual marks representing language"
+    },
+    {
+      "id": "arithmetic",
+      "name": "Arithmetic",
+      "year": -2000,
+      "desc": "Basic operations of addition, subtraction, multiplication, and division"
+    },
+    {
+      "id": "bronze_smelting",
+      "name": "Bronze Smelting",
+      "year": -3300,
+      "desc": "Alloying copper with tin to produce bronze tools and weapons"
+    },
+    {
+      "id": "astronomy_observation",
+      "name": "Astronomical Observation",
+      "year": -3000,
+      "desc": "Systematic recording of celestial positions and cycles"
+    },
+    {
+      "id": "pythagorean_theorem",
+      "name": "Pythagorean Theorem",
+      "year": -530,
+      "desc": "Relation between sides of a right triangle"
+    },
+    {
+      "id": "euclidean_geometry",
+      "name": "Euclidean Geometry",
+      "year": -300,
+      "desc": "Axiomatic study of plane and solid figures based on Euclid's Elements"
+    },
+    {
+      "id": "democracy",
+      "name": "Democracy",
+      "year": -508,
+      "desc": "System of government where power is vested in the people"
+    },
+    {
+      "id": "aristotelian_logic",
+      "name": "Aristotelian Logic",
+      "year": -350,
+      "desc": "Formal system of deductive reasoning using syllogisms"
+    },
+    {
+      "id": "atomic_theory_ancient",
+      "name": "Ancient Atomism",
+      "year": -400,
+      "desc": "Hypothesis that matter consists of indivisible particles"
+    },
+    {
+      "id": "rhetoric",
+      "name": "Rhetoric",
+      "year": -380,
+      "desc": "Art of persuasive speaking and writing"
+    },
+    {
+      "id": "ethics",
+      "name": "Ethics",
+      "year": -350,
+      "desc": "Systematic study of moral principles and conduct"
+    },
+    {
+      "id": "metaphysics",
+      "name": "Metaphysics",
+      "year": -340,
+      "desc": "Study of the fundamental nature of reality and existence"
+    },
+    {
+      "id": "heliocentrism",
+      "name": "Heliocentrism",
+      "year": -270,
+      "desc": "Model placing the Sun at the center of the solar system"
+    },
+    {
+      "id": "archimedes_principle",
+      "name": "Archimedes' Principle",
+      "year": -250,
+      "desc": "Buoyant force equals weight of displaced fluid"
+    },
+    {
+      "id": "roman_law",
+      "name": "Roman Law",
+      "year": -449,
+      "desc": "Codified legal system forming the basis of Western civil law"
+    },
+    {
+      "id": "algebra",
+      "name": "Algebra",
+      "year": 820,
+      "desc": "Branch of mathematics dealing with symbols and rules for manipulating them"
+    },
+    {
+      "id": "optics_medieval",
+      "name": "Medieval Optics",
+      "year": 1021,
+      "desc": "Systematic study of light and vision by Ibn al-Haytham"
+    },
+    {
+      "id": "printing_press",
+      "name": "Printing Press",
+      "year": 1440,
+      "desc": "Movable-type mechanical printing enabling mass production of books"
+    },
+    {
+      "id": "perspective_art",
+      "name": "Linear Perspective",
+      "year": 1413,
+      "desc": "Geometric technique for representing three-dimensional space on a flat surface"
+    },
+    {
+      "id": "copernican_model",
+      "name": "Copernican Model",
+      "year": 1543,
+      "desc": "Heliocentric model with Sun at center and planetary orbits"
+    },
+    {
+      "id": "anatomy_modern",
+      "name": "Modern Anatomy",
+      "year": 1543,
+      "desc": "Systematic study of human body structure based on dissection"
+    },
+    {
+      "id": "scientific_method",
+      "name": "Scientific Method",
+      "year": 1620,
+      "desc": "Systematic observation, experimentation, and hypothesis testing"
+    },
+    {
+      "id": "telescope",
+      "name": "Telescope",
+      "year": 1608,
+      "desc": "Optical instrument for magnifying distant celestial objects"
+    },
+    {
+      "id": "analytic_geometry",
+      "name": "Analytic Geometry",
+      "year": 1637,
+      "desc": "Unification of algebra and geometry through coordinate systems"
+    },
+    {
+      "id": "calculus",
+      "name": "Calculus",
+      "year": 1687,
+      "desc": "Mathematics of change and motion via derivatives and integrals"
+    },
+    {
+      "id": "newtonian_mechanics",
+      "name": "Newtonian Mechanics",
+      "year": 1687,
+      "desc": "Laws of motion and universal gravitation"
+    },
+    {
+      "id": "probability_theory",
+      "name": "Probability Theory",
+      "year": 1654,
+      "desc": "Mathematical framework for quantifying uncertainty and chance"
+    },
+    {
+      "id": "microscope",
+      "name": "Microscope",
+      "year": 1665,
+      "desc": "Optical instrument for magnifying tiny structures"
+    },
+    {
+      "id": "cell_theory",
+      "name": "Cell Theory",
+      "year": 1839,
+      "desc": "All living organisms are composed of cells as basic units of life"
+    },
+    {
+      "id": "taxonomy",
+      "name": "Taxonomy",
+      "year": 1735,
+      "desc": "Classification of organisms into hierarchical groups"
+    },
+    {
+      "id": "steam_engine",
+      "name": "Steam Engine",
+      "year": 1712,
+      "desc": "Heat engine using steam pressure to perform mechanical work"
+    },
+    {
+      "id": "supply_and_demand",
+      "name": "Supply and Demand",
+      "year": 1776,
+      "desc": "Model of price determination in a market through buyer and seller behavior"
+    },
+    {
+      "id": "capitalism",
+      "name": "Capitalism",
+      "year": 1776,
+      "desc": "Economic system based on private ownership and free markets"
+    },
+    {
+      "id": "social_contract",
+      "name": "Social Contract",
+      "year": 1762,
+      "desc": "Theory that political authority derives from agreement among individuals"
+    },
+    {
+      "id": "constitution",
+      "name": "Constitution",
+      "year": 1789,
+      "desc": "Fundamental law establishing government structure and individual rights"
+    },
+    {
+      "id": "oxygen_theory",
+      "name": "Oxygen Theory",
+      "year": 1777,
+      "desc": "Explanation of combustion and respiration through oxygen"
+    },
+    {
+      "id": "electricity",
+      "name": "Electricity",
+      "year": 1752,
+      "desc": "Study and harnessing of electric charge and current"
+    },
+    {
+      "id": "vaccination",
+      "name": "Vaccination",
+      "year": 1796,
+      "desc": "Stimulating immune response to prevent infectious disease"
+    },
+    {
+      "id": "atomic_theory_dalton",
+      "name": "Dalton's Atomic Theory",
+      "year": 1803,
+      "desc": "Elements consist of indivisible atoms with characteristic weights"
+    },
+    {
+      "id": "fourier_analysis",
+      "name": "Fourier Analysis",
+      "year": 1822,
+      "desc": "Decomposition of functions into sums of sinusoidal components"
+    },
+    {
+      "id": "electromagnetism",
+      "name": "Electromagnetism",
+      "year": 1865,
+      "desc": "Unified theory of electric and magnetic fields described by Maxwell's equations"
+    },
+    {
+      "id": "thermodynamics",
+      "name": "Thermodynamics",
+      "year": 1850,
+      "desc": "Study of heat, work, energy, and entropy in physical systems"
+    },
+    {
+      "id": "natural_selection",
+      "name": "Natural Selection",
+      "year": 1859,
+      "desc": "Mechanism of evolution through differential survival and reproduction"
+    },
+    {
+      "id": "germ_theory",
+      "name": "Germ Theory",
+      "year": 1862,
+      "desc": "Theory that microorganisms cause many diseases"
+    },
+    {
+      "id": "periodic_table",
+      "name": "Periodic Table",
+      "year": 1869,
+      "desc": "Arrangement of chemical elements by atomic number revealing periodic properties"
+    },
+    {
+      "id": "statistical_mechanics",
+      "name": "Statistical Mechanics",
+      "year": 1877,
+      "desc": "Explaining macroscopic thermodynamics from microscopic particle behavior"
+    },
+    {
+      "id": "boolean_algebra",
+      "name": "Boolean Algebra",
+      "year": 1854,
+      "desc": "Algebraic system for logical operations using true and false values"
+    },
+    {
+      "id": "set_theory",
+      "name": "Set Theory",
+      "year": 1874,
+      "desc": "Foundational branch studying collections of abstract objects"
+    },
+    {
+      "id": "non_euclidean_geometry",
+      "name": "Non-Euclidean Geometry",
+      "year": 1829,
+      "desc": "Geometries where Euclid's parallel postulate does not hold"
+    },
+    {
+      "id": "phonetics",
+      "name": "Phonetics",
+      "year": 1886,
+      "desc": "Scientific study of speech sounds and their production"
+    },
+    {
+      "id": "grammar_formal",
+      "name": "Formal Grammar",
+      "year": 1956,
+      "desc": "Mathematical description of language structure and syntax rules"
+    },
+    {
+      "id": "music_theory",
+      "name": "Music Theory",
+      "year": 1722,
+      "desc": "Systematic framework for understanding musical structure and harmony"
+    },
+    {
+      "id": "photography",
+      "name": "Photography",
+      "year": 1826,
+      "desc": "Capturing images through light-sensitive chemical or electronic processes"
+    },
+    {
+      "id": "architecture_modern",
+      "name": "Modern Architecture",
+      "year": 1851,
+      "desc": "Architectural movement emphasizing function, new materials, and minimal ornament"
+    },
+    {
+      "id": "x_rays",
+      "name": "X-Rays",
+      "year": 1895,
+      "desc": "High-energy electromagnetic radiation used for imaging internal structures"
+    },
+    {
+      "id": "radioactivity",
+      "name": "Radioactivity",
+      "year": 1896,
+      "desc": "Spontaneous emission of particles or energy from unstable atomic nuclei"
+    },
+    {
+      "id": "special_relativity",
+      "name": "Special Relativity",
+      "year": 1905,
+      "desc": "Theory unifying space and time with constant speed of light for all observers"
+    },
+    {
+      "id": "general_relativity",
+      "name": "General Relativity",
+      "year": 1915,
+      "desc": "Geometric theory of gravitation describing spacetime curvature"
+    },
+    {
+      "id": "quantum_mechanics",
+      "name": "Quantum Mechanics",
+      "year": 1925,
+      "desc": "Theory describing matter and energy at atomic and subatomic scales"
+    },
+    {
+      "id": "antibiotics",
+      "name": "Antibiotics",
+      "year": 1928,
+      "desc": "Substances that kill or inhibit growth of bacteria"
+    },
+    {
+      "id": "dna_structure",
+      "name": "DNA Structure",
+      "year": 1953,
+      "desc": "Double-helix molecular structure carrying genetic information"
+    },
+    {
+      "id": "genetics",
+      "name": "Genetics",
+      "year": 1866,
+      "desc": "Study of heredity and variation through genes"
+    },
+    {
+      "id": "organic_chemistry",
+      "name": "Organic Chemistry",
+      "year": 1828,
+      "desc": "Study of carbon-containing compounds and their reactions"
+    },
+    {
+      "id": "psychoanalysis",
+      "name": "Psychoanalysis",
+      "year": 1899,
+      "desc": "Theory of unconscious mental processes influencing behavior"
+    },
+    {
+      "id": "behaviorism",
+      "name": "Behaviorism",
+      "year": 1913,
+      "desc": "Psychological approach studying observable behavior and conditioning"
+    },
+    {
+      "id": "cognitive_science",
+      "name": "Cognitive Science",
+      "year": 1956,
+      "desc": "Interdisciplinary study of mind and intelligence"
+    },
+    {
+      "id": "turing_machine",
+      "name": "Turing Machine",
+      "year": 1936,
+      "desc": "Abstract mathematical model of computation"
+    },
+    {
+      "id": "information_theory",
+      "name": "Information Theory",
+      "year": 1948,
+      "desc": "Mathematical framework for quantifying and transmitting information"
+    },
+    {
+      "id": "transistor",
+      "name": "Transistor",
+      "year": 1947,
+      "desc": "Semiconductor device for amplifying or switching electronic signals"
+    },
+    {
+      "id": "programming_languages",
+      "name": "Programming Languages",
+      "year": 1957,
+      "desc": "Formal languages for instructing computers to perform tasks"
+    },
+    {
+      "id": "integrated_circuit",
+      "name": "Integrated Circuit",
+      "year": 1958,
+      "desc": "Multiple electronic components fabricated on a single semiconductor chip"
+    },
+    {
+      "id": "internet",
+      "name": "Internet",
+      "year": 1969,
+      "desc": "Global network of interconnected computer networks"
+    },
+    {
+      "id": "relational_database",
+      "name": "Relational Database",
+      "year": 1970,
+      "desc": "Data storage model organizing information into related tables"
+    },
+    {
+      "id": "cryptography_modern",
+      "name": "Modern Cryptography",
+      "year": 1976,
+      "desc": "Secure communication techniques based on mathematical hardness assumptions"
+    },
+    {
+      "id": "algorithms",
+      "name": "Algorithms",
+      "year": 1962,
+      "desc": "Step-by-step procedures for solving computational problems"
+    },
+    {
+      "id": "machine_learning",
+      "name": "Machine Learning",
+      "year": 1959,
+      "desc": "Systems that learn patterns from data without explicit programming"
+    },
+    {
+      "id": "world_wide_web",
+      "name": "World Wide Web",
+      "year": 1991,
+      "desc": "Hypertext system for accessing and linking documents over the Internet"
+    },
+    {
+      "id": "deep_learning",
+      "name": "Deep Learning",
+      "year": 2006,
+      "desc": "Machine learning using multi-layer neural networks"
+    },
+    {
+      "id": "big_bang_theory",
+      "name": "Big Bang Theory",
+      "year": 1927,
+      "desc": "Cosmological model of the universe expanding from an initial singularity"
+    },
+    {
+      "id": "nuclear_fission",
+      "name": "Nuclear Fission",
+      "year": 1938,
+      "desc": "Splitting heavy atomic nuclei to release energy"
+    },
+    {
+      "id": "plate_tectonics",
+      "name": "Plate Tectonics",
+      "year": 1912,
+      "desc": "Theory that Earth's lithosphere consists of moving plates"
+    },
+    {
+      "id": "game_theory",
+      "name": "Game Theory",
+      "year": 1944,
+      "desc": "Mathematical study of strategic decision-making among rational agents"
+    },
+    {
+      "id": "keynesian_economics",
+      "name": "Keynesian Economics",
+      "year": 1936,
+      "desc": "Theory that government spending can stabilize economic cycles"
+    },
+    {
+      "id": "international_law",
+      "name": "International Law",
+      "year": 1648,
+      "desc": "Rules and norms governing relations between sovereign states"
+    },
+    {
+      "id": "epistemology",
+      "name": "Epistemology",
+      "year": -380,
+      "desc": "Study of the nature, scope, and limits of knowledge"
+    },
+    {
+      "id": "topology",
+      "name": "Topology",
+      "year": 1895,
+      "desc": "Study of geometric properties preserved under continuous deformations"
+    },
+    {
+      "id": "statistics",
+      "name": "Statistics",
+      "year": 1749,
+      "desc": "Collection, analysis, and interpretation of quantitative data"
+    },
+    {
+      "id": "number_theory",
+      "name": "Number Theory",
+      "year": -300,
+      "desc": "Study of properties and relationships of integers"
+    },
+    {
+      "id": "abstract_algebra",
+      "name": "Abstract Algebra",
+      "year": 1830,
+      "desc": "Study of algebraic structures such as groups, rings, and fields"
+    },
+    {
+      "id": "differential_equations",
+      "name": "Differential Equations",
+      "year": 1676,
+      "desc": "Equations relating functions to their derivatives"
+    },
+    {
+      "id": "linear_algebra",
+      "name": "Linear Algebra",
+      "year": 1843,
+      "desc": "Study of vector spaces, linear transformations, and matrices"
+    },
+    {
+      "id": "chemical_bonding",
+      "name": "Chemical Bonding",
+      "year": 1916,
+      "desc": "Theory of how atoms combine through sharing or transfer of electrons"
+    },
+    {
+      "id": "biochemistry",
+      "name": "Biochemistry",
+      "year": 1903,
+      "desc": "Study of chemical processes within living organisms"
+    },
+    {
+      "id": "ecology",
+      "name": "Ecology",
+      "year": 1866,
+      "desc": "Study of interactions between organisms and their environment"
+    },
+    {
+      "id": "microbiology",
+      "name": "Microbiology",
+      "year": 1676,
+      "desc": "Study of microscopic organisms including bacteria and viruses"
+    },
+    {
+      "id": "neuroscience",
+      "name": "Neuroscience",
+      "year": 1891,
+      "desc": "Study of the nervous system and brain function"
+    },
+    {
+      "id": "molecular_biology",
+      "name": "Molecular Biology",
+      "year": 1961,
+      "desc": "Study of biological activity at the molecular level"
+    },
+    {
+      "id": "epidemiology",
+      "name": "Epidemiology",
+      "year": 1854,
+      "desc": "Study of disease distribution and determinants in populations"
+    },
+    {
+      "id": "anesthesia",
+      "name": "Anesthesia",
+      "year": 1846,
+      "desc": "Inducing loss of sensation for painless surgical procedures"
+    },
+    {
+      "id": "spectroscopy",
+      "name": "Spectroscopy",
+      "year": 1859,
+      "desc": "Analysis of matter through its interaction with electromagnetic radiation"
+    },
+    {
+      "id": "stellar_evolution",
+      "name": "Stellar Evolution",
+      "year": 1913,
+      "desc": "Theory of how stars form, change, and end their life cycles"
+    },
+    {
+      "id": "hubble_expansion",
+      "name": "Hubble's Law",
+      "year": 1929,
+      "desc": "Observation that galaxies recede at speeds proportional to their distance"
+    },
+    {
+      "id": "exoplanets",
+      "name": "Exoplanet Discovery",
+      "year": 1992,
+      "desc": "Detection and study of planets orbiting stars other than the Sun"
+    },
+    {
+      "id": "civil_engineering",
+      "name": "Civil Engineering",
+      "year": 1716,
+      "desc": "Design and construction of infrastructure such as bridges, roads, and buildings"
+    },
+    {
+      "id": "electrical_engineering",
+      "name": "Electrical Engineering",
+      "year": 1882,
+      "desc": "Application of electromagnetism to design circuits and power systems"
+    },
+    {
+      "id": "semiconductor_physics",
+      "name": "Semiconductor Physics",
+      "year": 1931,
+      "desc": "Study of materials with conductivity between metals and insulators"
+    },
+    {
+      "id": "control_theory",
+      "name": "Control Theory",
+      "year": 1868,
+      "desc": "Mathematical analysis of dynamical systems and feedback regulation"
+    },
+    {
+      "id": "flight",
+      "name": "Powered Flight",
+      "year": 1903,
+      "desc": "Sustained heavier-than-air mechanical flight"
+    },
+    {
+      "id": "behavioural_economics",
+      "name": "Behavioural Economics",
+      "year": 1979,
+      "desc": "Incorporating psychological insights into economic models of decision-making"
+    },
+    {
+      "id": "international_trade",
+      "name": "International Trade Theory",
+      "year": 1817,
+      "desc": "Theory of comparative advantage driving trade between nations"
+    },
+    {
+      "id": "human_rights",
+      "name": "Human Rights",
+      "year": 1948,
+      "desc": "Universal moral and legal rights inherent to all human beings"
+    },
+    {
+      "id": "pragmatism",
+      "name": "Pragmatism",
+      "year": 1878,
+      "desc": "Philosophical tradition evaluating ideas by their practical consequences"
+    },
+    {
+      "id": "existentialism",
+      "name": "Existentialism",
+      "year": 1943,
+      "desc": "Philosophy emphasizing individual freedom, choice, and responsibility"
+    },
+    {
+      "id": "historical_linguistics",
+      "name": "Historical Linguistics",
+      "year": 1786,
+      "desc": "Study of how languages change and relate over time"
+    },
+    {
+      "id": "semiotics",
+      "name": "Semiotics",
+      "year": 1916,
+      "desc": "Study of signs, symbols, and their interpretation"
+    },
+    {
+      "id": "cinema",
+      "name": "Cinema",
+      "year": 1895,
+      "desc": "Art and technology of capturing and projecting moving images"
+    },
+    {
+      "id": "impressionism",
+      "name": "Impressionism",
+      "year": 1874,
+      "desc": "Art movement emphasizing light, color, and fleeting visual impression"
+    },
+    {
+      "id": "developmental_psychology",
+      "name": "Developmental Psychology",
+      "year": 1882,
+      "desc": "Study of psychological growth and change across the lifespan"
+    },
+    {
+      "id": "social_psychology",
+      "name": "Social Psychology",
+      "year": 1908,
+      "desc": "Study of how individuals are influenced by social context"
+    },
+    {
+      "id": "genome_sequencing",
+      "name": "Genome Sequencing",
+      "year": 1977,
+      "desc": "Determining the complete DNA sequence of an organism's genome"
+    },
+    {
+      "id": "crispr",
+      "name": "CRISPR Gene Editing",
+      "year": 2012,
+      "desc": "Precise genome editing tool using bacterial immune system components"
+    },
+    {
+      "id": "quantum_computing",
+      "name": "Quantum Computing",
+      "year": 1985,
+      "desc": "Computation using quantum-mechanical phenomena like superposition and entanglement"
+    },
+    {
+      "id": "robotics",
+      "name": "Robotics",
+      "year": 1961,
+      "desc": "Design and operation of programmable machines for automated tasks"
+    },
+    {
+      "id": "graph_theory",
+      "name": "Graph Theory",
+      "year": 1736,
+      "desc": "Study of graphs as mathematical structures modeling pairwise relations"
+    },
+    {
+      "id": "mathematical_logic",
+      "name": "Mathematical Logic",
+      "year": 1879,
+      "desc": "Application of formal logic to mathematical reasoning and foundations"
+    },
+    {
+      "id": "calendar_systems",
+      "name": "Calendar Systems",
+      "year": -2600,
+      "desc": "Systematic timekeeping based on astronomical cycles"
+    }
+  ],
+  "links": [
+    {
+      "source": "counting",
+      "target": "arithmetic",
+      "weight": 0.9
+    },
+    {
+      "source": "counting",
+      "target": "writing",
+      "weight": 0.5
+    },
+    {
+      "source": "arithmetic",
+      "target": "algebra",
+      "weight": 0.9
+    },
+    {
+      "source": "arithmetic",
+      "target": "pythagorean_theorem",
+      "weight": 0.7
+    },
+    {
+      "source": "pythagorean_theorem",
+      "target": "euclidean_geometry",
+      "weight": 0.8
+    },
+    {
+      "source": "euclidean_geometry",
+      "target": "analytic_geometry",
+      "weight": 0.7
+    },
+    {
+      "source": "euclidean_geometry",
+      "target": "non_euclidean_geometry",
+      "weight": 0.8
+    },
+    {
+      "source": "euclidean_geometry",
+      "target": "newtonian_mechanics",
+      "weight": 0.7
+    },
+    {
+      "source": "algebra",
+      "target": "analytic_geometry",
+      "weight": 0.8
+    },
+    {
+      "source": "algebra",
+      "target": "calculus",
+      "weight": 0.8
+    },
+    {
+      "source": "algebra",
+      "target": "probability_theory",
+      "weight": 0.5
+    },
+    {
+      "source": "algebra",
+      "target": "abstract_algebra",
+      "weight": 0.9
+    },
+    {
+      "source": "analytic_geometry",
+      "target": "calculus",
+      "weight": 0.9
+    },
+    {
+      "source": "calculus",
+      "target": "newtonian_mechanics",
+      "weight": 0.9
+    },
+    {
+      "source": "calculus",
+      "target": "differential_equations",
+      "weight": 0.9
+    },
+    {
+      "source": "calculus",
+      "target": "fourier_analysis",
+      "weight": 0.8
+    },
+    {
+      "source": "calculus",
+      "target": "thermodynamics",
+      "weight": 0.6
+    },
+    {
+      "source": "differential_equations",
+      "target": "control_theory",
+      "weight": 0.7
+    },
+    {
+      "source": "differential_equations",
+      "target": "general_relativity",
+      "weight": 0.6
+    },
+    {
+      "source": "probability_theory",
+      "target": "statistics",
+      "weight": 0.9
+    },
+    {
+      "source": "probability_theory",
+      "target": "statistical_mechanics",
+      "weight": 0.7
+    },
+    {
+      "source": "probability_theory",
+      "target": "game_theory",
+      "weight": 0.6
+    },
+    {
+      "source": "statistics",
+      "target": "epidemiology",
+      "weight": 0.6
+    },
+    {
+      "source": "statistics",
+      "target": "machine_learning",
+      "weight": 0.7
+    },
+    {
+      "source": "statistics",
+      "target": "behavioural_economics",
+      "weight": 0.5
+    },
+    {
+      "source": "set_theory",
+      "target": "topology",
+      "weight": 0.7
+    },
+    {
+      "source": "set_theory",
+      "target": "mathematical_logic",
+      "weight": 0.8
+    },
+    {
+      "source": "non_euclidean_geometry",
+      "target": "general_relativity",
+      "weight": 0.8
+    },
+    {
+      "source": "non_euclidean_geometry",
+      "target": "topology",
+      "weight": 0.6
+    },
+    {
+      "source": "abstract_algebra",
+      "target": "linear_algebra",
+      "weight": 0.7
+    },
+    {
+      "source": "abstract_algebra",
+      "target": "cryptography_modern",
+      "weight": 0.6
+    },
+    {
+      "source": "linear_algebra",
+      "target": "quantum_mechanics",
+      "weight": 0.7
+    },
+    {
+      "source": "linear_algebra",
+      "target": "machine_learning",
+      "weight": 0.7
+    },
+    {
+      "source": "linear_algebra",
+      "target": "deep_learning",
+      "weight": 0.6
+    },
+    {
+      "source": "number_theory",
+      "target": "cryptography_modern",
+      "weight": 0.8
+    },
+    {
+      "source": "graph_theory",
+      "target": "algorithms",
+      "weight": 0.7
+    },
+    {
+      "source": "graph_theory",
+      "target": "internet",
+      "weight": 0.4
+    },
+    {
+      "source": "mathematical_logic",
+      "target": "turing_machine",
+      "weight": 0.9
+    },
+    {
+      "source": "boolean_algebra",
+      "target": "turing_machine",
+      "weight": 0.7
+    },
+    {
+      "source": "boolean_algebra",
+      "target": "transistor",
+      "weight": 0.5
+    },
+    {
+      "source": "newtonian_mechanics",
+      "target": "thermodynamics",
+      "weight": 0.6
+    },
+    {
+      "source": "newtonian_mechanics",
+      "target": "special_relativity",
+      "weight": 0.8
+    },
+    {
+      "source": "newtonian_mechanics",
+      "target": "flight",
+      "weight": 0.6
+    },
+    {
+      "source": "newtonian_mechanics",
+      "target": "steam_engine",
+      "weight": 0.5
+    },
+    {
+      "source": "newtonian_mechanics",
+      "target": "general_relativity",
+      "weight": 0.9
+    },
+    {
+      "source": "thermodynamics",
+      "target": "statistical_mechanics",
+      "weight": 0.9
+    },
+    {
+      "source": "thermodynamics",
+      "target": "steam_engine",
+      "weight": 0.7
+    },
+    {
+      "source": "thermodynamics",
+      "target": "chemical_bonding",
+      "weight": 0.5
+    },
+    {
+      "source": "electromagnetism",
+      "target": "special_relativity",
+      "weight": 0.8
+    },
+    {
+      "source": "electromagnetism",
+      "target": "electrical_engineering",
+      "weight": 0.9
+    },
+    {
+      "source": "electromagnetism",
+      "target": "x_rays",
+      "weight": 0.5
+    },
+    {
+      "source": "electricity",
+      "target": "electromagnetism",
+      "weight": 0.9
+    },
+    {
+      "source": "electricity",
+      "target": "electrical_engineering",
+      "weight": 0.8
+    },
+    {
+      "source": "special_relativity",
+      "target": "general_relativity",
+      "weight": 0.9
+    },
+    {
+      "source": "special_relativity",
+      "target": "nuclear_fission",
+      "weight": 0.6
+    },
+    {
+      "source": "general_relativity",
+      "target": "big_bang_theory",
+      "weight": 0.8
+    },
+    {
+      "source": "quantum_mechanics",
+      "target": "chemical_bonding",
+      "weight": 0.8
+    },
+    {
+      "source": "quantum_mechanics",
+      "target": "semiconductor_physics",
+      "weight": 0.9
+    },
+    {
+      "source": "quantum_mechanics",
+      "target": "nuclear_fission",
+      "weight": 0.8
+    },
+    {
+      "source": "quantum_mechanics",
+      "target": "quantum_computing",
+      "weight": 0.9
+    },
+    {
+      "source": "statistical_mechanics",
+      "target": "quantum_mechanics",
+      "weight": 0.6
+    },
+    {
+      "source": "radioactivity",
+      "target": "nuclear_fission",
+      "weight": 0.8
+    },
+    {
+      "source": "spectroscopy",
+      "target": "stellar_evolution",
+      "weight": 0.7
+    },
+    {
+      "source": "spectroscopy",
+      "target": "quantum_mechanics",
+      "weight": 0.5
+    },
+    {
+      "source": "fourier_analysis",
+      "target": "information_theory",
+      "weight": 0.6
+    },
+    {
+      "source": "fourier_analysis",
+      "target": "spectroscopy",
+      "weight": 0.5
+    },
+    {
+      "source": "atomic_theory_ancient",
+      "target": "atomic_theory_dalton",
+      "weight": 0.5
+    },
+    {
+      "source": "atomic_theory_dalton",
+      "target": "periodic_table",
+      "weight": 0.8
+    },
+    {
+      "source": "atomic_theory_dalton",
+      "target": "organic_chemistry",
+      "weight": 0.6
+    },
+    {
+      "source": "periodic_table",
+      "target": "chemical_bonding",
+      "weight": 0.7
+    },
+    {
+      "source": "oxygen_theory",
+      "target": "atomic_theory_dalton",
+      "weight": 0.7
+    },
+    {
+      "source": "organic_chemistry",
+      "target": "biochemistry",
+      "weight": 0.8
+    },
+    {
+      "source": "organic_chemistry",
+      "target": "antibiotics",
+      "weight": 0.5
+    },
+    {
+      "source": "chemical_bonding",
+      "target": "molecular_biology",
+      "weight": 0.6
+    },
+    {
+      "source": "microscope",
+      "target": "cell_theory",
+      "weight": 0.9
+    },
+    {
+      "source": "microscope",
+      "target": "microbiology",
+      "weight": 0.9
+    },
+    {
+      "source": "cell_theory",
+      "target": "germ_theory",
+      "weight": 0.6
+    },
+    {
+      "source": "cell_theory",
+      "target": "genetics",
+      "weight": 0.5
+    },
+    {
+      "source": "taxonomy",
+      "target": "natural_selection",
+      "weight": 0.6
+    },
+    {
+      "source": "natural_selection",
+      "target": "genetics",
+      "weight": 0.7
+    },
+    {
+      "source": "natural_selection",
+      "target": "ecology",
+      "weight": 0.6
+    },
+    {
+      "source": "genetics",
+      "target": "dna_structure",
+      "weight": 0.9
+    },
+    {
+      "source": "genetics",
+      "target": "molecular_biology",
+      "weight": 0.8
+    },
+    {
+      "source": "dna_structure",
+      "target": "genome_sequencing",
+      "weight": 0.9
+    },
+    {
+      "source": "dna_structure",
+      "target": "crispr",
+      "weight": 0.7
+    },
+    {
+      "source": "genome_sequencing",
+      "target": "crispr",
+      "weight": 0.7
+    },
+    {
+      "source": "biochemistry",
+      "target": "molecular_biology",
+      "weight": 0.8
+    },
+    {
+      "source": "biochemistry",
+      "target": "neuroscience",
+      "weight": 0.5
+    },
+    {
+      "source": "microbiology",
+      "target": "germ_theory",
+      "weight": 0.8
+    },
+    {
+      "source": "ecology",
+      "target": "epidemiology",
+      "weight": 0.4
+    },
+    {
+      "source": "germ_theory",
+      "target": "vaccination",
+      "weight": 0.8
+    },
+    {
+      "source": "germ_theory",
+      "target": "antibiotics",
+      "weight": 0.7
+    },
+    {
+      "source": "germ_theory",
+      "target": "epidemiology",
+      "weight": 0.7
+    },
+    {
+      "source": "vaccination",
+      "target": "epidemiology",
+      "weight": 0.5
+    },
+    {
+      "source": "anatomy_modern",
+      "target": "cell_theory",
+      "weight": 0.5
+    },
+    {
+      "source": "anatomy_modern",
+      "target": "anesthesia",
+      "weight": 0.4
+    },
+    {
+      "source": "x_rays",
+      "target": "radioactivity",
+      "weight": 0.6
+    },
+    {
+      "source": "x_rays",
+      "target": "anatomy_modern",
+      "weight": 0.5
+    },
+    {
+      "source": "turing_machine",
+      "target": "programming_languages",
+      "weight": 0.8
+    },
+    {
+      "source": "turing_machine",
+      "target": "algorithms",
+      "weight": 0.8
+    },
+    {
+      "source": "turing_machine",
+      "target": "information_theory",
+      "weight": 0.6
+    },
+    {
+      "source": "information_theory",
+      "target": "cryptography_modern",
+      "weight": 0.7
+    },
+    {
+      "source": "information_theory",
+      "target": "internet",
+      "weight": 0.5
+    },
+    {
+      "source": "transistor",
+      "target": "integrated_circuit",
+      "weight": 0.9
+    },
+    {
+      "source": "semiconductor_physics",
+      "target": "transistor",
+      "weight": 0.9
+    },
+    {
+      "source": "integrated_circuit",
+      "target": "internet",
+      "weight": 0.5
+    },
+    {
+      "source": "integrated_circuit",
+      "target": "robotics",
+      "weight": 0.5
+    },
+    {
+      "source": "programming_languages",
+      "target": "relational_database",
+      "weight": 0.5
+    },
+    {
+      "source": "programming_languages",
+      "target": "world_wide_web",
+      "weight": 0.6
+    },
+    {
+      "source": "programming_languages",
+      "target": "machine_learning",
+      "weight": 0.5
+    },
+    {
+      "source": "algorithms",
+      "target": "machine_learning",
+      "weight": 0.7
+    },
+    {
+      "source": "algorithms",
+      "target": "cryptography_modern",
+      "weight": 0.6
+    },
+    {
+      "source": "machine_learning",
+      "target": "deep_learning",
+      "weight": 0.9
+    },
+    {
+      "source": "internet",
+      "target": "world_wide_web",
+      "weight": 0.9
+    },
+    {
+      "source": "control_theory",
+      "target": "robotics",
+      "weight": 0.7
+    },
+    {
+      "source": "grammar_formal",
+      "target": "programming_languages",
+      "weight": 0.7
+    },
+    {
+      "source": "cognitive_science",
+      "target": "machine_learning",
+      "weight": 0.5
+    },
+    {
+      "source": "aristotelian_logic",
+      "target": "mathematical_logic",
+      "weight": 0.7
+    },
+    {
+      "source": "aristotelian_logic",
+      "target": "scientific_method",
+      "weight": 0.5
+    },
+    {
+      "source": "aristotelian_logic",
+      "target": "boolean_algebra",
+      "weight": 0.5
+    },
+    {
+      "source": "ethics",
+      "target": "social_contract",
+      "weight": 0.6
+    },
+    {
+      "source": "ethics",
+      "target": "human_rights",
+      "weight": 0.6
+    },
+    {
+      "source": "epistemology",
+      "target": "scientific_method",
+      "weight": 0.7
+    },
+    {
+      "source": "metaphysics",
+      "target": "existentialism",
+      "weight": 0.5
+    },
+    {
+      "source": "scientific_method",
+      "target": "optics_medieval",
+      "weight": 0.6
+    },
+    {
+      "source": "scientific_method",
+      "target": "germ_theory",
+      "weight": 0.5
+    },
+    {
+      "source": "pragmatism",
+      "target": "behaviorism",
+      "weight": 0.5
+    },
+    {
+      "source": "existentialism",
+      "target": "human_rights",
+      "weight": 0.4
+    },
+    {
+      "source": "democracy",
+      "target": "roman_law",
+      "weight": 0.5
+    },
+    {
+      "source": "democracy",
+      "target": "constitution",
+      "weight": 0.7
+    },
+    {
+      "source": "roman_law",
+      "target": "international_law",
+      "weight": 0.6
+    },
+    {
+      "source": "social_contract",
+      "target": "constitution",
+      "weight": 0.8
+    },
+    {
+      "source": "social_contract",
+      "target": "democracy",
+      "weight": 0.6
+    },
+    {
+      "source": "constitution",
+      "target": "human_rights",
+      "weight": 0.7
+    },
+    {
+      "source": "supply_and_demand",
+      "target": "capitalism",
+      "weight": 0.7
+    },
+    {
+      "source": "supply_and_demand",
+      "target": "international_trade",
+      "weight": 0.7
+    },
+    {
+      "source": "supply_and_demand",
+      "target": "keynesian_economics",
+      "weight": 0.6
+    },
+    {
+      "source": "game_theory",
+      "target": "behavioural_economics",
+      "weight": 0.6
+    },
+    {
+      "source": "capitalism",
+      "target": "keynesian_economics",
+      "weight": 0.7
+    },
+    {
+      "source": "writing",
+      "target": "rhetoric",
+      "weight": 0.6
+    },
+    {
+      "source": "writing",
+      "target": "printing_press",
+      "weight": 0.7
+    },
+    {
+      "source": "writing",
+      "target": "historical_linguistics",
+      "weight": 0.5
+    },
+    {
+      "source": "rhetoric",
+      "target": "grammar_formal",
+      "weight": 0.4
+    },
+    {
+      "source": "phonetics",
+      "target": "semiotics",
+      "weight": 0.5
+    },
+    {
+      "source": "historical_linguistics",
+      "target": "semiotics",
+      "weight": 0.5
+    },
+    {
+      "source": "printing_press",
+      "target": "scientific_method",
+      "weight": 0.5
+    },
+    {
+      "source": "perspective_art",
+      "target": "photography",
+      "weight": 0.5
+    },
+    {
+      "source": "photography",
+      "target": "cinema",
+      "weight": 0.8
+    },
+    {
+      "source": "photography",
+      "target": "impressionism",
+      "weight": 0.4
+    },
+    {
+      "source": "optics_medieval",
+      "target": "telescope",
+      "weight": 0.7
+    },
+    {
+      "source": "optics_medieval",
+      "target": "microscope",
+      "weight": 0.6
+    },
+    {
+      "source": "telescope",
+      "target": "copernican_model",
+      "weight": 0.7
+    },
+    {
+      "source": "copernican_model",
+      "target": "newtonian_mechanics",
+      "weight": 0.7
+    },
+    {
+      "source": "heliocentrism",
+      "target": "copernican_model",
+      "weight": 0.9
+    },
+    {
+      "source": "astronomy_observation",
+      "target": "heliocentrism",
+      "weight": 0.6
+    },
+    {
+      "source": "astronomy_observation",
+      "target": "calendar_systems",
+      "weight": 0.7
+    },
+    {
+      "source": "stellar_evolution",
+      "target": "big_bang_theory",
+      "weight": 0.6
+    },
+    {
+      "source": "hubble_expansion",
+      "target": "big_bang_theory",
+      "weight": 0.9
+    },
+    {
+      "source": "telescope",
+      "target": "spectroscopy",
+      "weight": 0.5
+    },
+    {
+      "source": "telescope",
+      "target": "hubble_expansion",
+      "weight": 0.6
+    },
+    {
+      "source": "steam_engine",
+      "target": "thermodynamics",
+      "weight": 0.7
+    },
+    {
+      "source": "steam_engine",
+      "target": "civil_engineering",
+      "weight": 0.5
+    },
+    {
+      "source": "electrical_engineering",
+      "target": "transistor",
+      "weight": 0.6
+    },
+    {
+      "source": "civil_engineering",
+      "target": "architecture_modern",
+      "weight": 0.5
+    },
+    {
+      "source": "psychoanalysis",
+      "target": "developmental_psychology",
+      "weight": 0.6
+    },
+    {
+      "source": "psychoanalysis",
+      "target": "cognitive_science",
+      "weight": 0.4
+    },
+    {
+      "source": "behaviorism",
+      "target": "cognitive_science",
+      "weight": 0.7
+    },
+    {
+      "source": "behaviorism",
+      "target": "social_psychology",
+      "weight": 0.5
+    },
+    {
+      "source": "neuroscience",
+      "target": "cognitive_science",
+      "weight": 0.8
+    },
+    {
+      "source": "plate_tectonics",
+      "target": "civil_engineering",
+      "weight": 0.3
+    },
+    {
+      "source": "nuclear_fission",
+      "target": "electricity",
+      "weight": 0.4
+    },
+    {
+      "source": "deep_learning",
+      "target": "quantum_computing",
+      "weight": 0.3
+    },
+    {
+      "source": "bronze_smelting",
+      "target": "oxygen_theory",
+      "weight": 0.3
+    },
+    {
+      "source": "euclidean_geometry",
+      "target": "archimedes_principle",
+      "weight": 0.7
+    },
+    {
+      "source": "archimedes_principle",
+      "target": "newtonian_mechanics",
+      "weight": 0.5
+    },
+    {
+      "source": "telescope",
+      "target": "exoplanets",
+      "weight": 0.5
+    },
+    {
+      "source": "pythagorean_theorem",
+      "target": "music_theory",
+      "weight": 0.6
+    }
+  ]
+}

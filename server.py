@@ -7,7 +7,7 @@ from pathlib import Path
 from aiohttp import web
 
 from db import GraphDB
-from generator import expansion_loop, name_clusters, BACKENDS
+from generator import expansion_loop, name_clusters, describe_node, BACKENDS
 
 PROJECT_DIR = Path(__file__).parent
 log = logging.getLogger(__name__)
@@ -103,12 +103,14 @@ async def handle_expand(request):
         return web.json_response({"error": "Expansion already running. Stop it first."}, status=409)
 
     rounds = body.get("rounds", 0)
+    count = int(body.get("count", 20))
+    system_prompt = body.get("system_prompt")
     db = app["db"]
     callback = make_sse_callback(app)
 
     async def run():
         try:
-            await expansion_loop(seed, db, backend=backend, callback=callback, max_rounds=rounds)
+            await expansion_loop(seed, db, backend=backend, callback=callback, max_rounds=rounds, count=count, system_prompt=system_prompt)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -136,9 +138,29 @@ async def handle_cluster_names(request):
     body = await request.json()
     clusters = body.get("clusters", [])
     backend = body.get("backend", "openai")
+    system_prompt = body.get("system_prompt")
     try:
-        names = await name_clusters(clusters, backend=backend)
+        names = await name_clusters(clusters, backend=backend, system_prompt=system_prompt)
         return web.json_response({"names": names})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_describe(request):
+    body = await request.json()
+    node_id = body.get("id")
+    if not node_id:
+        return web.json_response({"error": "Missing id"}, status=400)
+    backend = body.get("backend", "openai")
+    system_prompt = body.get("system_prompt")
+    db = request.app["db"]
+    node = db.get_node(node_id)
+    if not node:
+        return web.json_response({"error": "Node not found"}, status=404)
+    try:
+        desc = await describe_node(node["name"], node["year"], backend, system_prompt=system_prompt)
+        db.update_desc(node_id, desc)
+        return web.json_response({"id": node_id, "desc": desc})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -212,6 +234,7 @@ def create_app(db_path: str = None) -> web.Application:
     app.router.add_post("/api/expand", handle_expand)
     app.router.add_post("/api/stop", handle_stop)
     app.router.add_post("/api/cluster-names", handle_cluster_names)
+    app.router.add_post("/api/describe", handle_describe)
     app.router.add_post("/api/import", handle_import)
     app.router.add_get("/api/stream", handle_stream)
     app.router.add_get("/{path:.+}", handle_static)
@@ -230,7 +253,7 @@ if __name__ == "__main__":
     log.info("Knowledge Tree Server")
     log.info("  Port: %s", port)
     log.info("  Database: %s", db_path)
-    log.info("  Graph: %d nodes, %d edges, %d domains", stats["nodes"], stats["edges"], stats["domains"])
+    log.info("  Graph: %d nodes, %d edges", stats["nodes"], stats["edges"])
     for name, info in BACKENDS.items():
         configured = "yes" if os.environ.get(info["env"]) else "no"
         log.info("  Backend %s (%s): %s", name, info["model"], configured)

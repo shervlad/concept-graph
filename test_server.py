@@ -40,8 +40,8 @@ async def test_graph_with_data(client):
     c = await client
     import_data = {
         "nodes": [
-            {"id": "a", "name": "A", "year": 2000, "domains": ["math"]},
-            {"id": "b", "name": "B", "year": 2001, "domains": ["math"]},
+            {"id": "a", "name": "A", "year": 2000},
+            {"id": "b", "name": "B", "year": 2001},
         ],
         "links": [{"source": "a", "target": "b", "weight": 0.8}],
     }
@@ -56,7 +56,7 @@ async def test_graph_limit(client):
     c = await client
     import_data = {
         "nodes": [
-            {"id": f"n{i}", "name": f"N{i}", "year": 2000, "domains": []}
+            {"id": f"n{i}", "name": f"N{i}", "year": 2000}
             for i in range(20)
         ],
         "links": [],
@@ -72,8 +72,8 @@ async def test_stats(client):
     c = await client
     import_data = {
         "nodes": [
-            {"id": "a", "name": "A", "year": 2000, "domains": ["x"]},
-            {"id": "b", "name": "B", "year": 2001, "domains": ["x"]},
+            {"id": "a", "name": "A", "year": 2000},
+            {"id": "b", "name": "B", "year": 2001},
         ],
         "links": [{"source": "a", "target": "b", "weight": 0.5}],
     }
@@ -98,7 +98,7 @@ async def test_backends(client):
 async def test_import(client):
     c = await client
     import_data = {
-        "nodes": [{"id": "x", "name": "X", "year": 2000, "domains": ["test"]}],
+        "nodes": [{"id": "x", "name": "X", "year": 2000}],
         "links": [],
     }
     resp = await c.post("/api/import", json=import_data)
@@ -154,7 +154,7 @@ async def test_sse_receives_import_broadcast(client):
         await asyncio.wait_for(sse_resp.content.readline(), timeout=2)
 
     import_data = {
-        "nodes": [{"id": "x", "name": "X", "year": 2000, "domains": []}],
+        "nodes": [{"id": "x", "name": "X", "year": 2000}],
         "links": [],
     }
     await c.post("/api/import", json=import_data)
@@ -215,8 +215,8 @@ async def test_graph_center_param(client):
     c = await client
     import_data = {
         "nodes": [
-            {"id": "a", "name": "A", "year": 2000, "domains": ["x"]},
-            {"id": "b", "name": "B", "year": 2001, "domains": ["x"]},
+            {"id": "a", "name": "A", "year": 2000},
+            {"id": "b", "name": "B", "year": 2001},
         ],
         "links": [{"source": "a", "target": "b", "weight": 0.5}],
     }

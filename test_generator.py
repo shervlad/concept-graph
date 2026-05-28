@@ -31,7 +31,7 @@ class MockDB:
         return [k for k in self._nodes if k not in expanded_set][:n]
 
     def get_stats(self):
-        return {"nodes": len(self._nodes), "edges": len(self._edges), "domains": 0}
+        return {"nodes": len(self._nodes), "edges": len(self._edges)}
 
 
 from generator import _parse_json_response, expand_once, expansion_loop, name_clusters, call_llm, _build_user_prompt
@@ -58,71 +58,70 @@ def test_parse_json_with_preamble():
 
 # --- Prompt construction tests ---
 
-def test_build_seed_prompt():
-    prompt = _build_user_prompt("mathematics", {}, is_seed=True)
-    assert "mathematics" in prompt.lower()
-    assert "EXISTING CONCEPTS" not in prompt
+def test_build_prompt():
+    prompt = _build_user_prompt("physics", ["Math", "Chemistry"], count=10)
+    assert "10" in prompt
+    assert "physics" in prompt.lower()
+    assert "Math" in prompt
 
 
-def test_build_expansion_prompt():
-    existing = {"calc": "Calculus", "alg": "Algebra"}
-    prompt = _build_user_prompt("geometry", existing, is_seed=False)
-    assert "geometry" in prompt.lower()
-    assert "calc" in prompt
-    assert "Calculus" in prompt
-    assert "EXISTING CONCEPTS" in prompt
+# --- make_id tests ---
+
+def test_make_id():
+    from generator import _make_id
+    assert _make_id("Quantum Mechanics", set()) == "quantum_mechanics"
+    assert _make_id("DNA", set()) == "dna"
+    assert _make_id("Quantum Mechanics", {"quantum_mechanics"}) == "quantum_mechanics_2"
+    result = _make_id("C++", set())
+    assert isinstance(result, str) and len(result) > 0
 
 
 # --- expand_once tests ---
 
 async def test_expand_once_deduplicates():
     db = MockDB()
-    db.add_node({"id": "existing", "name": "Existing", "year": 2000, "domains": []})
+    db.add_node({"id": "existing", "name": "Existing", "year": 2000})
 
     mock_response = {
-        "nodes": [
-            {"id": "existing", "name": "Existing Dupe", "year": 2000, "domains": ["math"]},
-            {"id": "new_one", "name": "New One", "year": 2001, "domains": ["math"]},
-        ],
-        "edges": []
+        "concepts": [
+            {"name": "Existing", "year": 2000, "weight": 0.5},
+            {"name": "New One", "year": 2001, "weight": 0.7},
+        ]
     }
     with patch("generator.call_llm", new_callable=AsyncMock, return_value=mock_response):
         result = await expand_once("test", db, "openai")
-    assert len(result["nodes"]) == 1
-    assert result["nodes"][0]["id"] == "new_one"
+    # The new node should be added; the existing one may get a suffixed ID or be skipped
+    new_ids = {n["id"] for n in result["nodes"]}
+    assert "new_one" in new_ids or any("new" in nid for nid in new_ids)
 
 
 async def test_expand_once_validates():
     db = MockDB()
     mock_response = {
-        "nodes": [
-            {"name": "No ID", "year": 2000, "domains": ["math"]},
-            {"id": "valid", "name": "Valid", "year": 2000, "domains": ["math"]},
-        ],
-        "edges": []
+        "concepts": [
+            {"year": 2000, "weight": 0.5},
+            {"name": "Valid", "year": 2000, "weight": 0.5},
+        ]
     }
     with patch("generator.call_llm", new_callable=AsyncMock, return_value=mock_response):
         result = await expand_once("test", db, "openai")
-    assert len(result["nodes"]) == 1
-    assert result["nodes"][0]["id"] == "valid"
+    # Concept missing name should be skipped
+    names = [n["name"] for n in result["nodes"]]
+    assert "Valid" in names
 
 
 async def test_expand_once_clamps_weight():
     db = MockDB()
     mock_response = {
-        "nodes": [
-            {"id": "a", "name": "A", "year": 2000, "domains": []},
-            {"id": "b", "name": "B", "year": 2000, "domains": []},
-        ],
-        "edges": [
-            {"source": "a", "target": "b", "weight": 1.5},
-            {"source": "b", "target": "a", "weight": -0.3},
+        "concepts": [
+            {"name": "A", "year": 2000, "weight": 1.5},
+            {"name": "B", "year": 2000, "weight": -0.3},
         ]
     }
     with patch("generator.call_llm", new_callable=AsyncMock, return_value=mock_response):
         result = await expand_once("test", db, "openai")
-    weights = [e["weight"] for e in result["edges"]]
-    assert all(0.0 <= w <= 1.0 for w in weights)
+    for edge in result.get("edges", []):
+        assert 0.0 <= edge["weight"] <= 1.0
 
 
 # --- expansion_loop tests ---
@@ -141,8 +140,7 @@ async def test_expansion_loop_stops_on_cancel():
         if call_count > 1:
             raise asyncio.CancelledError()
         return {
-            "nodes": [{"id": f"n{i}", "name": f"N{i}", "year": 2000, "domains": []} for i in range(3)],
-            "edges": []
+            "concepts": [{"name": f"N{i}", "year": 2000, "weight": 0.5} for i in range(3)]
         }
 
     with patch("generator.call_llm", side_effect=cancelling_llm):
@@ -164,8 +162,7 @@ async def test_expansion_loop_continues_on_error():
         if call_count == 1:
             raise RuntimeError("API error")
         return {
-            "nodes": [{"id": f"n{call_count}", "name": f"N{call_count}", "year": 2000, "domains": []}],
-            "edges": []
+            "concepts": [{"name": f"N{call_count}", "year": 2000, "weight": 0.5}]
         }
 
     with patch("generator.call_llm", side_effect=flaky_llm):

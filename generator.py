@@ -3,6 +3,7 @@ import os
 import asyncio
 import logging
 import re
+from collections import deque
 
 log = logging.getLogger("generator")
 
@@ -10,63 +11,35 @@ BACKENDS = {
     "openai":   {"sdk": "openai",    "model": "gpt-4o",              "env": "OPENAI_API_KEY"},
     "claude":   {"sdk": "anthropic", "model": "claude-sonnet-4-20250514", "env": "ANTHROPIC_API_KEY"},
     "gemini":   {"sdk": "gemini",    "model": "gemini-2.0-flash",    "env": "GOOGLE_API_KEY"},
-    "deepseek": {"sdk": "openai",    "model": "deepseek-chat",       "env": "DEEPSEEK_API_KEY",
+    "deepseek": {"sdk": "openai",    "model": "deepseek-v4-pro",     "env": "DEEPSEEK_API_KEY",
                  "base_url": "https://api.deepseek.com/v1"},
     "grok":     {"sdk": "openai",    "model": "grok-3",              "env": "XAI_API_KEY",
                  "base_url": "https://api.x.ai/v1"},
 }
 
-SYSTEM_PROMPT = """You are a knowledge graph builder creating a comprehensive tree of human knowledge.
-You output ONLY valid JSON — no markdown, no commentary, no code fences.
-Every concept must have a historically accurate year of first appearance.
-Connections must have meaningful weights reflecting intellectual dependency strength."""
+SYSTEM_PROMPT = "You list related knowledge concepts. Output ONLY valid JSON."
 
-def _build_user_prompt(focal: str, existing: dict[str, str], is_seed: bool) -> str:
-    if is_seed:
-        return f"""Create the foundational concept "{focal}" and 15 closely related concepts that form
-its intellectual neighborhood in the tree of human knowledge.
 
-For each concept provide:
-- id: unique snake_case (e.g. "calculus", "general_relativity")
-- name: human-readable (1-5 words)
-- year: integer, year first formulated (negative for BC, e.g. -300)
-- domains: array of 1-3 category strings (lowercase_snake_case, e.g. ["physics", "mathematics"])
-- desc: one sentence description
+def _build_user_prompt(focal: str, existing_names: list[str], count: int = 20) -> str:
+    skip = ", ".join(f'"{n}"' for n in existing_names[:200])
+    return (
+        f'List {count} concepts related to "{focal}".\n'
+        f'For each return: name, year (integer, negative=BC), weight (0.0-1.0 relatedness to "{focal}").\n'
+        f'Skip these: [{skip}]\n'
+        f'Output: {{"concepts": [{{"name": "...", "year": ..., "weight": ...}}, ...]}}'
+    )
 
-Then provide directed edges (source influenced/enabled target):
-- source: concept id
-- target: concept id
-- weight: 0.0-1.0 (1.0 = direct dependency, 0.5 = moderate influence, 0.2 = loose)
 
-Respond with ONLY this JSON structure:
-{{"nodes": [...], "edges": [...]}}"""
-
-    existing_list = "\n".join(f"  - {eid}: {ename}" for eid, ename in sorted(existing.items())[:200])
-    return f"""Expand the knowledge graph around the concept "{focal}".
-
-EXISTING CONCEPTS (do NOT duplicate — but DO connect to them):
-{existing_list}
-
-Generate 15 NEW concepts closely related to "{focal}" that are missing from the graph.
-Include concepts that:
-- Are prerequisites or foundations for "{focal}"
-- Were directly influenced by or built upon "{focal}"
-- Are sibling concepts in the same intellectual tradition
-- Bridge "{focal}" to other domains
-
-For each new concept:
-- id: unique snake_case, not in the existing list above
-- name: human-readable (1-5 words)
-- year: integer year first formulated (negative for BC)
-- domains: array of 1-3 category strings (lowercase_snake_case)
-- desc: one sentence description
-
-Then provide edges connecting new concepts to existing ones AND to each other:
-- source, target: concept ids (can reference existing or new)
-- weight: 0.0-1.0
-
-Respond with ONLY this JSON:
-{{"nodes": [...], "edges": [...]}}"""
+def _make_id(name: str, existing_ids: set) -> str:
+    base = re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')
+    if not base:
+        base = "concept"
+    candidate = base
+    n = 2
+    while candidate in existing_ids:
+        candidate = f"{base}_{n}"
+        n += 1
+    return candidate
 
 
 def _parse_json_response(text: str) -> dict:
@@ -84,11 +57,13 @@ def _parse_json_response(text: str) -> dict:
         raise
 
 
-async def call_llm(prompt: str, backend: str = "openai") -> dict:
+async def call_llm(prompt: str, backend: str = "openai", system_prompt: str = None) -> dict:
     cfg = BACKENDS[backend]
     env_key = os.environ.get(cfg["env"], "")
     if not env_key:
         raise ValueError(f"Missing {cfg['env']} environment variable for backend '{backend}'")
+
+    sys_msg = system_prompt or SYSTEM_PROMPT
 
     if cfg["sdk"] == "openai":
         from openai import AsyncOpenAI
@@ -99,22 +74,25 @@ async def call_llm(prompt: str, backend: str = "openai") -> dict:
         resp = await client.chat.completions.create(
             model=cfg["model"],
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": sys_msg},
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
             temperature=0.7,
-            max_tokens=4096,
+            max_tokens=2048,
         )
-        return _parse_json_response(resp.choices[0].message.content)
+        content = resp.choices[0].message.content
+        if not content:
+            content = getattr(resp.choices[0].message, 'reasoning_content', '') or ''
+        return _parse_json_response(content)
 
     elif cfg["sdk"] == "anthropic":
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=env_key)
         resp = await client.messages.create(
             model=cfg["model"],
-            max_tokens=4096,
-            system=SYSTEM_PROMPT + "\nRespond with ONLY valid JSON.",
+            max_tokens=2048,
+            system=sys_msg + "\nRespond with ONLY valid JSON.",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
@@ -126,52 +104,43 @@ async def call_llm(prompt: str, backend: str = "openai") -> dict:
         model = genai.GenerativeModel(cfg["model"])
         resp = await asyncio.to_thread(
             model.generate_content,
-            SYSTEM_PROMPT + "\n\n" + prompt,
+            sys_msg + "\n\n" + prompt,
             generation_config=genai.GenerationConfig(
                 response_mime_type="application/json",
                 temperature=0.7,
-                max_output_tokens=4096,
+                max_output_tokens=2048,
             ),
         )
         return _parse_json_response(resp.text)
 
 
-async def expand_once(focal: str, db, backend: str = "openai") -> dict:
-    existing_ids = db.get_node_ids()
-    existing_names = db.get_node_names_by_ids(list(existing_ids))
-    is_seed = len(existing_ids) == 0
-    prompt = _build_user_prompt(focal, existing_names, is_seed)
+async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, system_prompt: str = None) -> dict:
+    existing_ids = set(db.get_node_ids())
+    existing_names = list(db.get_node_names_by_ids(list(existing_ids)).values())
+    focal_name = db.get_node_names_by_ids([focal]).get(focal, focal)
+    prompt = _build_user_prompt(focal_name, existing_names, count)
 
-    log.info(f"Calling {backend} to expand around '{focal}' (existing: {len(existing_ids)} concepts)")
-    result = await call_llm(prompt, backend)
+    log.info(f"Expanding '{focal}' via {backend} (asking for {count} concepts)")
+    result = await call_llm(prompt, backend, system_prompt=system_prompt)
 
     new_nodes = []
     new_edges = []
 
-    for node in result.get("nodes", []):
-        if not all(k in node for k in ("id", "name")):
+    for concept in result.get("concepts", []):
+        name = concept.get("name")
+        if not name:
             continue
-        if node["id"] in existing_ids:
-            continue
-        if not isinstance(node.get("year"), int):
-            node["year"] = None
-        if "domains" not in node:
-            node["domains"] = ["unknown"]
-        if isinstance(node["domains"], str):
-            node["domains"] = [node["domains"]]
-        node.setdefault("desc", "")
+        nid = _make_id(name, existing_ids)
+        year = concept.get("year") if isinstance(concept.get("year"), int) else None
+        weight = max(0.0, min(1.0, float(concept.get("weight", 0.5))))
+
+        node = {"id": nid, "name": name, "year": year, "desc": ""}
         if db.add_node(node):
             new_nodes.append(node)
-            existing_ids.add(node["id"])
-
-    for edge in result.get("edges", []):
-        if not all(k in edge for k in ("source", "target")):
-            continue
-        if edge["source"] not in existing_ids or edge["target"] not in existing_ids:
-            continue
-        edge["weight"] = max(0.0, min(1.0, float(edge.get("weight", 0.5))))
-        if db.add_edge(edge):
-            new_edges.append(edge)
+            existing_ids.add(nid)
+            edge = {"source": focal, "target": nid, "weight": weight}
+            if db.add_edge(edge):
+                new_edges.append(edge)
 
     log.info(f"Added {len(new_nodes)} nodes, {len(new_edges)} edges")
     return {"nodes": new_nodes, "edges": new_edges}
@@ -187,64 +156,108 @@ async def _notify(callback, event: str, data: dict):
             log.error(f"Callback error on '{event}': {e}")
 
 
-async def expansion_loop(seed: str, db, backend: str = "openai", callback=None, max_rounds: int = 0):
-    expanded = set()
+async def expansion_loop(seed, db, backend="openai", callback=None, max_rounds=0, count=20, system_prompt=None):
+    queue = deque([seed])
+    visited = set()
     round_num = 0
 
     try:
-        result = await expand_once(seed, db, backend)
-        await _notify(callback, "expand", {
-            "round": round_num,
-            "focal": seed,
-            "new_nodes": result["nodes"],
-            "new_edges": result["edges"],
-            "stats": db.get_stats(),
-        })
-        expanded.add(seed)
-        round_num += 1
+        while queue:
+            if max_rounds and round_num >= max_rounds:
+                break
+            focal = queue.popleft()
+            if focal in visited:
+                continue
+            visited.add(focal)
+
+            try:
+                result = await expand_once(focal, db, backend, count, system_prompt=system_prompt)
+                new_nodes = result["nodes"]
+                new_edges = result["edges"]
+                for n in new_nodes:
+                    queue.append(n["id"])
+                if callback:
+                    stats = db.get_stats()
+                    await callback("expand", {
+                        "round": round_num,
+                        "focal": focal,
+                        "new_nodes": new_nodes,
+                        "new_edges": new_edges,
+                        "stats": stats,
+                    })
+            except asyncio.CancelledError:
+                if callback:
+                    await callback("stopped", {"stats": db.get_stats()})
+                return
+            except Exception as e:
+                if callback:
+                    await callback("error", {"round": round_num, "focal": focal, "error": str(e), "stats": db.get_stats()})
+            round_num += 1
+
+        if callback:
+            await callback("done", {"stats": db.get_stats()})
     except asyncio.CancelledError:
-        log.info("Expansion cancelled")
-        await _notify(callback, "stopped", {"stats": db.get_stats()})
-        return
-    except Exception as e:
-        log.error(f"Seed expansion failed: {e}")
-        await _notify(callback, "error", {"message": str(e), "focal": seed})
-        expanded.add(seed)
-        round_num += 1
-
-    while max_rounds == 0 or round_num < max_rounds:
-        candidates = db.get_least_expanded(expanded, 5)
-        if not candidates:
-            log.info("No more candidates to expand")
-            await _notify(callback, "done", {"stats": db.get_stats()})
-            return
-
-        focal = candidates[0]
-        try:
-            result = await expand_once(focal, db, backend)
-            await _notify(callback, "expand", {
-                "round": round_num,
-                "focal": focal,
-                "new_nodes": result["nodes"],
-                "new_edges": result["edges"],
-                "stats": db.get_stats(),
-            })
-            expanded.add(focal)
-            round_num += 1
-        except asyncio.CancelledError:
-            log.info("Expansion cancelled")
-            await _notify(callback, "stopped", {"stats": db.get_stats()})
-            return
-        except Exception as e:
-            log.error(f"Expansion round {round_num} failed: {e}")
-            await _notify(callback, "error", {"message": str(e), "focal": focal})
-            expanded.add(focal)
-            round_num += 1
-
-    await _notify(callback, "done", {"stats": db.get_stats()})
+        if callback:
+            await callback("stopped", {"round": round_num, "stats": db.get_stats()})
 
 
-async def name_clusters(clusters: list[dict], backend: str = "openai") -> list[str]:
+async def describe_node(name: str, year: int | None, backend: str = "openai", system_prompt: str = None) -> str:
+    year_str = f" ({year})" if year else ""
+    prompt = f'Describe "{name}"{year_str} in one sentence. Output ONLY the sentence, nothing else.'
+    cfg = BACKENDS.get(backend)
+    if not cfg:
+        raise ValueError(f"Unknown backend: {backend}")
+    key = os.environ.get(cfg["env"], "")
+    if not key:
+        raise RuntimeError(f"Missing API key: {cfg['env']}")
+
+    sys_msg = system_prompt if system_prompt else "You are a concise encyclopedia."
+
+    if cfg["sdk"] == "openai":
+        from openai import AsyncOpenAI
+        client_kwargs = {"api_key": key}
+        if "base_url" in cfg:
+            client_kwargs["base_url"] = cfg["base_url"]
+        client = AsyncOpenAI(**client_kwargs)
+        resp = await client.chat.completions.create(
+            model=cfg["model"],
+            messages=[
+                {"role": "system", "content": sys_msg},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=100,
+        )
+        content = resp.choices[0].message.content or ""
+        return content.strip()
+
+    elif cfg["sdk"] == "anthropic":
+        from anthropic import AsyncAnthropic
+        client = AsyncAnthropic(api_key=key)
+        resp = await client.messages.create(
+            model=cfg["model"],
+            max_tokens=100,
+            system=sys_msg,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.content[0].text.strip()
+
+    elif cfg["sdk"] == "gemini":
+        import google.generativeai as genai
+        genai.configure(api_key=key)
+        model = genai.GenerativeModel(cfg["model"])
+        resp = await asyncio.to_thread(
+            model.generate_content,
+            sys_msg + "\n\n" + prompt,
+            generation_config=genai.GenerationConfig(
+                max_output_tokens=100,
+            ),
+        )
+        return resp.text.strip()
+
+    raise ValueError(f"Unknown SDK: {cfg['sdk']}")
+
+
+async def name_clusters(clusters: list[dict], backend: str = "openai", system_prompt: str = None) -> list[str]:
     prompt = """Given these clusters of knowledge concepts, provide a short descriptive name (2-4 words) for each cluster.
 
 Clusters:
@@ -258,5 +271,5 @@ Clusters:
 Respond with ONLY this JSON:
 {{"names": ["Cluster 1 Name", "Cluster 2 Name", ...]}}"""
 
-    result = await call_llm(prompt, backend)
+    result = await call_llm(prompt, backend, system_prompt=system_prompt)
     return result.get("names", [f"Cluster {i+1}" for i in range(len(clusters))])

@@ -149,14 +149,17 @@ async def expand_once(focal: str, db, backend: str = "openai") -> dict:
     new_edges = []
 
     for node in result.get("nodes", []):
-        if not all(k in node for k in ("id", "name", "year")):
+        if not all(k in node for k in ("id", "name")):
             continue
         if node["id"] in existing_ids:
             continue
+        if not isinstance(node.get("year"), int):
+            node["year"] = None
         if "domains" not in node:
             node["domains"] = ["unknown"]
         if isinstance(node["domains"], str):
             node["domains"] = [node["domains"]]
+        node.setdefault("desc", "")
         if db.add_node(node):
             new_nodes.append(node)
             existing_ids.add(node["id"])
@@ -174,65 +177,71 @@ async def expand_once(focal: str, db, backend: str = "openai") -> dict:
     return {"nodes": new_nodes, "edges": new_edges}
 
 
+async def _notify(callback, event: str, data: dict):
+    if callback:
+        try:
+            await callback(event, data)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.error(f"Callback error on '{event}': {e}")
+
+
 async def expansion_loop(seed: str, db, backend: str = "openai", callback=None, max_rounds: int = 0):
     expanded = set()
     round_num = 0
 
-    # First round: expand from seed
     try:
         result = await expand_once(seed, db, backend)
-        if callback:
-            await callback("expand", {
-                "round": round_num,
-                "focal": seed,
-                "new_nodes": result["nodes"],
-                "new_edges": result["edges"],
-                "stats": db.get_stats(),
-            })
+        await _notify(callback, "expand", {
+            "round": round_num,
+            "focal": seed,
+            "new_nodes": result["nodes"],
+            "new_edges": result["edges"],
+            "stats": db.get_stats(),
+        })
         expanded.add(seed)
         round_num += 1
+    except asyncio.CancelledError:
+        log.info("Expansion cancelled")
+        await _notify(callback, "stopped", {"stats": db.get_stats()})
+        return
     except Exception as e:
         log.error(f"Seed expansion failed: {e}")
-        if callback:
-            await callback("error", {"message": str(e), "focal": seed})
-        return
+        await _notify(callback, "error", {"message": str(e), "focal": seed})
+        expanded.add(seed)
+        round_num += 1
 
     while max_rounds == 0 or round_num < max_rounds:
         candidates = db.get_least_expanded(expanded, 5)
         if not candidates:
             log.info("No more candidates to expand")
-            if callback:
-                await callback("done", {"message": "No more candidates", "stats": db.get_stats()})
-            break
+            await _notify(callback, "done", {"stats": db.get_stats()})
+            return
 
         focal = candidates[0]
         try:
             result = await expand_once(focal, db, backend)
-            if callback:
-                await callback("expand", {
-                    "round": round_num,
-                    "focal": focal,
-                    "new_nodes": result["nodes"],
-                    "new_edges": result["edges"],
-                    "stats": db.get_stats(),
-                })
+            await _notify(callback, "expand", {
+                "round": round_num,
+                "focal": focal,
+                "new_nodes": result["nodes"],
+                "new_edges": result["edges"],
+                "stats": db.get_stats(),
+            })
             expanded.add(focal)
             round_num += 1
         except asyncio.CancelledError:
             log.info("Expansion cancelled")
-            if callback:
-                await callback("stopped", {"stats": db.get_stats()})
-            break
+            await _notify(callback, "stopped", {"stats": db.get_stats()})
+            return
         except Exception as e:
             log.error(f"Expansion round {round_num} failed: {e}")
-            if callback:
-                await callback("error", {"message": str(e), "focal": focal})
+            await _notify(callback, "error", {"message": str(e), "focal": focal})
             expanded.add(focal)
             round_num += 1
-            await asyncio.sleep(2)
 
-    if callback:
-        await callback("done", {"stats": db.get_stats()})
+    await _notify(callback, "done", {"stats": db.get_stats()})
 
 
 async def name_clusters(clusters: list[dict], backend: str = "openai") -> list[str]:

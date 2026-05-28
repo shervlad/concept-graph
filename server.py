@@ -7,7 +7,7 @@ from pathlib import Path
 from aiohttp import web
 
 from db import GraphDB
-from generator import expansion_loop, name_clusters, describe_node, BACKENDS
+from generator import expansion_loop, name_clusters, describe_node, BACKENDS, _make_id
 
 PROJECT_DIR = Path(__file__).parent
 log = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ async def handle_static(request):
 async def handle_graph(request):
     db = request.app["db"]
     try:
-        limit = int(request.query.get("limit", 500))
+        limit = int(request.query.get("limit", 0))
     except ValueError:
         return web.json_response({"error": "Invalid 'limit' parameter"}, status=400)
     center = request.query.get("center")
@@ -105,12 +105,20 @@ async def handle_expand(request):
     rounds = body.get("rounds", 0)
     count = int(body.get("count", 20))
     system_prompt = body.get("system_prompt")
+    user_prompt = body.get("user_prompt")
     db = app["db"]
     callback = make_sse_callback(app)
 
+    existing_ids = db.get_node_ids()
+    seed_id = _make_id(seed, set())
+    if seed_id in existing_ids:
+        seed = seed_id
+    elif seed not in existing_ids:
+        seed = seed_id
+
     async def run():
         try:
-            await expansion_loop(seed, db, backend=backend, callback=callback, max_rounds=rounds, count=count, system_prompt=system_prompt)
+            await expansion_loop(seed, db, backend=backend, callback=callback, max_rounds=rounds, count=count, system_prompt=system_prompt, user_prompt=user_prompt)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -163,6 +171,17 @@ async def handle_describe(request):
         return web.json_response({"id": node_id, "desc": desc})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_reset(request):
+    app = request.app
+    task = app["expansion_task"]
+    if task is not None and not task.done():
+        task.cancel()
+    db = app["db"]
+    db.clear()
+    broadcast(app, "stats", db.get_stats())
+    return web.json_response({"status": "reset"})
 
 
 async def handle_import(request):
@@ -236,6 +255,7 @@ def create_app(db_path: str = None) -> web.Application:
     app.router.add_post("/api/cluster-names", handle_cluster_names)
     app.router.add_post("/api/describe", handle_describe)
     app.router.add_post("/api/import", handle_import)
+    app.router.add_post("/api/reset", handle_reset)
     app.router.add_get("/api/stream", handle_stream)
     app.router.add_get("/{path:.+}", handle_static)
 

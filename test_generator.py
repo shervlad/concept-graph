@@ -34,7 +34,7 @@ class MockDB:
         return {"nodes": len(self._nodes), "edges": len(self._edges)}
 
 
-from generator import _parse_json_response, expand_once, expansion_loop, name_clusters, call_llm, _build_user_prompt
+from generator import _parse_json_response, _parse_text_concepts, expand_once, expansion_loop, name_clusters, call_llm, _build_user_prompt
 
 
 # --- Parsing tests ---
@@ -82,42 +82,25 @@ async def test_expand_once_deduplicates():
     db = MockDB()
     db.add_node({"id": "existing", "name": "Existing", "year": 2000})
 
-    mock_response = {
-        "concepts": [
-            {"name": "Existing", "year": 2000, "weight": 0.5},
-            {"name": "New One", "year": 2001, "weight": 0.7},
-        ]
-    }
+    mock_response = "Existing, 2000, 0.5\nNew One, 2001, 0.7"
     with patch("generator.call_llm", new_callable=AsyncMock, return_value=mock_response):
         result = await expand_once("test", db, "openai")
-    # The new node should be added; the existing one may get a suffixed ID or be skipped
     new_ids = {n["id"] for n in result["nodes"]}
     assert "new_one" in new_ids or any("new" in nid for nid in new_ids)
 
 
 async def test_expand_once_validates():
     db = MockDB()
-    mock_response = {
-        "concepts": [
-            {"year": 2000, "weight": 0.5},
-            {"name": "Valid", "year": 2000, "weight": 0.5},
-        ]
-    }
+    mock_response = "just some junk\nValid, 2000, 0.5"
     with patch("generator.call_llm", new_callable=AsyncMock, return_value=mock_response):
         result = await expand_once("test", db, "openai")
-    # Concept missing name should be skipped
     names = [n["name"] for n in result["nodes"]]
     assert "Valid" in names
 
 
 async def test_expand_once_clamps_weight():
     db = MockDB()
-    mock_response = {
-        "concepts": [
-            {"name": "A", "year": 2000, "weight": 1.5},
-            {"name": "B", "year": 2000, "weight": -0.3},
-        ]
-    }
+    mock_response = "A, 2000, 1.5\nB, 2000, -0.3"
     with patch("generator.call_llm", new_callable=AsyncMock, return_value=mock_response):
         result = await expand_once("test", db, "openai")
     for edge in result.get("edges", []):
@@ -139,9 +122,7 @@ async def test_expansion_loop_stops_on_cancel():
         call_count += 1
         if call_count > 1:
             raise asyncio.CancelledError()
-        return {
-            "concepts": [{"name": f"N{i}", "year": 2000, "weight": 0.5} for i in range(3)]
-        }
+        return "\n".join(f"N{i}, 2000, 0.5" for i in range(3))
 
     with patch("generator.call_llm", side_effect=cancelling_llm):
         await expansion_loop("seed", db, "openai", callback=cb, max_rounds=5)
@@ -161,9 +142,7 @@ async def test_expansion_loop_continues_on_error():
         call_count += 1
         if call_count == 1:
             raise RuntimeError("API error")
-        return {
-            "concepts": [{"name": f"N{call_count}", "year": 2000, "weight": 0.5}]
-        }
+        return f"N{call_count}, 2000, 0.5"
 
     with patch("generator.call_llm", side_effect=flaky_llm):
         await expansion_loop("seed", db, "openai", callback=cb, max_rounds=2)
@@ -174,7 +153,7 @@ async def test_expansion_loop_continues_on_error():
 # --- name_clusters test ---
 
 async def test_name_clusters():
-    mock_response = {"names": ["Ancient Mathematics", "Modern Physics"]}
+    mock_response = '{"names": ["Ancient Mathematics", "Modern Physics"]}'
     clusters = [
         {"names": ["Calculus", "Algebra"]},
         {"names": ["Quantum Mechanics", "Relativity"]},

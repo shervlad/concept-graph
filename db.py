@@ -103,7 +103,7 @@ class GraphDB:
                 ) ec ON ec.id = n.id
                 ORDER BY conn_count DESC
                 LIMIT ?
-            """, (limit,)).fetchall()
+            """, (limit if limit > 0 else -1,)).fetchall()
 
         node_ids = {r["id"] for r in node_rows}
 
@@ -181,6 +181,12 @@ class GraphDB:
     def update_desc(self, node_id: str, desc: str):
         with self._lock:
             self._conn.execute("UPDATE nodes SET desc=? WHERE id=?", (desc, node_id))
+            self._conn.commit()
+
+    def clear(self):
+        with self._lock:
+            self._conn.execute("DELETE FROM edges")
+            self._conn.execute("DELETE FROM nodes")
             self._conn.commit()
 
     def get_node_ids(self) -> set:

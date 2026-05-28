@@ -179,7 +179,14 @@
   </div>
   <div class="control-group">
     <label>System Prompt</label>
-    <textarea id="system-prompt" rows="3" style="width:100%;font-size:12px;resize:vertical;background:rgba(15,15,25,0.8);border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:5px 8px;color:#fff;outline:none;">You list related knowledge concepts. Output ONLY valid JSON.</textarea>
+    <textarea id="system-prompt" rows="2" style="width:100%;font-size:12px;resize:vertical;background:rgba(15,15,25,0.8);border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:5px 8px;color:#fff;outline:none;" placeholder="Optional system prompt"></textarea>
+  </div>
+  <div class="control-group">
+    <label>User Prompt <span style="font-size:10px;color:#666">{N}=count, {X}=concept</span></label>
+    <textarea id="user-prompt" rows="5" style="width:100%;font-size:12px;resize:vertical;background:rgba(15,15,25,0.8);border:1px solid rgba(255,255,255,0.12);border-radius:6px;padding:5px 8px;color:#fff;outline:none;">List {N} concepts related to "{X}".
+One line per concept: name, year, weight
+where name is the name of the concept, year is the year humanity came up with this concept (to the best of our knowledge, negative for BC), and weight is a number from 0.0 to 1.0 that represents how related this concept is to "{X}".
+Output ONLY the lines, nothing else.</textarea>
   </div>
   <div class="control-group">
     <label>Rounds <span style="font-size:10px;color:#666">(0 = unlimited)</span></label>
@@ -189,8 +196,9 @@
     <label>Concepts per round</label>
     <input type="number" id="count-input" value="20" min="1" max="100">
   </div>
-  <div style="margin-top: 8px;">
+  <div style="margin-top: 8px; display: flex; gap: 6px;">
     <button class="btn" id="expand-btn" onclick="startExpansion()">Start</button>
+    <button class="btn" onclick="resetGraph()" style="background:rgba(255,60,60,0.15);border-color:rgba(255,60,60,0.3);">Reset</button>
   </div>
 
   <div class="separator"></div>
@@ -204,6 +212,12 @@
   <div class="separator"></div>
   <h2>Import</h2>
   <input type="file" id="import-file" accept=".json" onchange="importJSON()">
+
+  <div class="separator"></div>
+  <div style="display: flex; gap: 6px;">
+    <button class="btn" onclick="saveSettings()">Save Settings</button>
+    <button class="btn" onclick="clearSettings()">Clear Saved</button>
+  </div>
 </div>
 
 <div id="status-msg"></div>
@@ -568,6 +582,19 @@ async function initGraph() {
   }
 }
 
+async function syncGraph() {
+  try {
+    const resp = await fetch('/api/graph');
+    const data = await resp.json();
+    const newNodes = data.nodes.filter(n => nodeIndex[n.id] === undefined);
+    const existingEdgeSet = new Set(edges.map(e => e.source + '|' + e.target));
+    const newEdges = data.links.filter(l => !existingEdgeSet.has(l.source + '|' + l.target));
+    if (newNodes.length > 0 || newEdges.length > 0) {
+      addNodesFromExpansion(newNodes, newEdges);
+    }
+  } catch (_) {}
+}
+
 // ── SSE Integration ────────────────────────────────────────
 function connectSSE() {
   const source = new EventSource('/api/stream');
@@ -591,18 +618,20 @@ function connectSSE() {
     } catch (_) {}
   });
 
-  source.addEventListener('done', (e) => {
+  source.addEventListener('done', async (e) => {
     const data = JSON.parse(e.data);
     if (data.stats) updateStatsDisplay(data.stats);
     showStatusMessage('Expansion complete.');
     setExpansionRunning(false);
+    await initGraph();
   });
 
-  source.addEventListener('stopped', (e) => {
+  source.addEventListener('stopped', async (e) => {
     const data = JSON.parse(e.data);
     if (data.stats) updateStatsDisplay(data.stats);
     showStatusMessage('Expansion stopped.');
     setExpansionRunning(false);
+    await initGraph();
   });
 
   source.addEventListener('stats', (e) => {
@@ -709,14 +738,7 @@ function handleNodeHover(info) {
     tooltip.style.display = 'block';
 
     if (!n.desc) {
-      ensureDescription(n).then(desc => {
-        if (desc && tooltip.style.display === 'block') {
-          tooltip.innerHTML =
-            '<div class="tt-name">' + escapeHtml(n.name) + '</div>' +
-            '<div class="tt-year">' + (n.year != null ? (n.year > 0 ? n.year + ' AD' : Math.abs(n.year) + ' BC') : 'Unknown') + '</div>' +
-            '<div class="tt-desc">' + escapeHtml(desc) + '</div>';
-        }
-      });
+      tooltip.innerHTML += '<div class="tt-desc" style="color:#666;">Click for description</div>';
     }
   } else {
     tooltip.style.display = 'none';
@@ -743,6 +765,17 @@ function handleNodeClick(info) {
     node.pinned = true;
     worker.postMessage({type: "pin", id: node.id, x: node.x, y: node.y});
     pinVersion++;
+
+    if (!node.desc) {
+      ensureDescription(node).then(desc => {
+        const tooltip = document.getElementById('tooltip');
+        if (desc && tooltip.style.display === 'block') {
+          tooltip.querySelector('.tt-desc')?.remove();
+          tooltip.innerHTML +=
+            '<div class="tt-desc">' + escapeHtml(desc) + '</div>';
+        }
+      });
+    }
   }
 
   lastClickTime = now;
@@ -876,11 +909,16 @@ async function startExpansion() {
 
   if (!seed) { showStatusMessage('Enter a seed concept', 'warn'); return; }
 
+  const seedId = seed.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'node';
+  if (nodeIndex[seedId] === undefined) {
+    addNodesFromExpansion([{id: seedId, name: seed, year: null, desc: ''}], []);
+  }
+
   try {
     const resp = await fetch('/api/expand', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({seed, backend, rounds, count, system_prompt: document.getElementById('system-prompt').value})
+      body: JSON.stringify({seed, backend, rounds, count, system_prompt: document.getElementById('system-prompt').value, user_prompt: document.getElementById('user-prompt').value})
     });
 
     const data = await resp.json();
@@ -895,16 +933,38 @@ async function startExpansion() {
   }
 }
 
+async function resetGraph() {
+  await fetch('/api/stop', {method: 'POST'});
+  await fetch('/api/reset', {method: 'POST'});
+  nodes = []; edges = []; nodeIndex = {};
+  visibleNodes = []; visibleEdges = []; clusterLabels = [];
+  worker.postMessage({type: "init", nodes: [], edges: [], params: getCurrentParams(), width: window.innerWidth, height: window.innerHeight});
+  setExpansionRunning(false);
+  updateStatusBar();
+  requestRender();
+  showStatusMessage('Graph cleared.');
+}
+
 async function stopExpansion() {
   await fetch('/api/stop', {method: 'POST'});
   showStatusMessage('Stopping...');
 }
+
+let expansionPoller = null;
 
 function setExpansionRunning(running) {
   expansionRunning = running;
   const btn = document.getElementById('expand-btn');
   btn.textContent = running ? 'Stop' : 'Start';
   btn.onclick = running ? stopExpansion : startExpansion;
+  if (running && !expansionPoller) {
+    expansionPoller = setInterval(async () => {
+      await syncGraph();
+    }, 3000);
+  } else if (!running && expansionPoller) {
+    clearInterval(expansionPoller);
+    expansionPoller = null;
+  }
   if (running) {
     btn.classList.add('active');
   } else {
@@ -993,6 +1053,54 @@ function showStatusMessage(msg, level) {
   statusMsgTimer = setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
+// ── Settings Persistence ──────────────────────────────────
+const SETTINGS_KEY = 'knowledge-tree-settings';
+const SETTING_IDS = [
+  'charge', 'linkdist', 'linkstr', 'timepull', 'cluster', 'decay', 'collision',
+  'budget', 'labelzoom', 'edgeopacity',
+  'rounds-input', 'count-input',
+  'system-prompt', 'user-prompt',
+  'auto-name-toggle'
+];
+
+function saveSettings() {
+  const settings = {};
+  for (const id of SETTING_IDS) {
+    const el = document.getElementById(id);
+    if (el.type === 'checkbox') settings[id] = el.checked;
+    else settings[id] = el.value;
+  }
+  const sel = document.getElementById('backend-select');
+  if (sel.value) settings['backend-select'] = sel.value;
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  showStatusMessage('Settings saved.');
+}
+
+function loadSettings() {
+  const raw = localStorage.getItem(SETTINGS_KEY);
+  if (!raw) return;
+  try {
+    const settings = JSON.parse(raw);
+    for (const [id, val] of Object.entries(settings)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (el.type === 'checkbox') el.checked = val;
+      else el.value = val;
+      const vEl = document.getElementById('v-' + id);
+      if (vEl) vEl.textContent = val;
+    }
+    renderBudget = parseInt(document.getElementById('budget').value);
+    labelZoomThreshold = parseFloat(document.getElementById('labelzoom').value);
+    edgeOpacity = parseFloat(document.getElementById('edgeopacity').value);
+    autoNameEnabled = document.getElementById('auto-name-toggle').checked;
+  } catch (_) {}
+}
+
+function clearSettings() {
+  localStorage.removeItem(SETTINGS_KEY);
+  showStatusMessage('Saved settings cleared.');
+}
+
 // ── Window Resize ──────────────────────────────────────────
 window.addEventListener('resize', () => {
   worker.postMessage({type: "resize", width: window.innerWidth, height: window.innerHeight});
@@ -1002,6 +1110,7 @@ window.addEventListener('resize', () => {
 document.addEventListener('DOMContentLoaded', async () => {
   setupSliders();
   await loadBackends();
+  loadSettings();
   await initGraph();
   connectSSE();
 

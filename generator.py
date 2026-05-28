@@ -11,23 +11,53 @@ BACKENDS = {
     "openai":   {"sdk": "openai",    "model": "gpt-4o",              "env": "OPENAI_API_KEY"},
     "claude":   {"sdk": "anthropic", "model": "claude-sonnet-4-20250514", "env": "ANTHROPIC_API_KEY"},
     "gemini":   {"sdk": "gemini",    "model": "gemini-2.0-flash",    "env": "GOOGLE_API_KEY"},
-    "deepseek": {"sdk": "openai",    "model": "deepseek-v4-pro",     "env": "DEEPSEEK_API_KEY",
+    "deepseek": {"sdk": "openai",    "model": "deepseek-chat",       "env": "DEEPSEEK_API_KEY",
                  "base_url": "https://api.deepseek.com/v1"},
     "grok":     {"sdk": "openai",    "model": "grok-3",              "env": "XAI_API_KEY",
                  "base_url": "https://api.x.ai/v1"},
 }
 
-SYSTEM_PROMPT = "You list related knowledge concepts. Output ONLY valid JSON."
+SYSTEM_PROMPT = "You list related knowledge concepts. One concept per line."
 
 
 def _build_user_prompt(focal: str, existing_names: list[str], count: int = 20) -> str:
-    skip = ", ".join(f'"{n}"' for n in existing_names[:200])
-    return (
+    prompt = (
         f'List {count} concepts related to "{focal}".\n'
-        f'For each return: name, year (integer, negative=BC), weight (0.0-1.0 relatedness to "{focal}").\n'
-        f'Skip these: [{skip}]\n'
-        f'Output: {{"concepts": [{{"name": "...", "year": ..., "weight": ...}}, ...]}}'
+        f'One line per concept: name, year, weight\n'
+        f'where name is the name of the concept, year is the year humanity came up with this concept '
+        f'(to the best of our knowledge, negative for BC), and weight is a number from 0.0 to 1.0 '
+        f'that represents how related this concept is to "{focal}".\n'
+        f'Output ONLY the lines, nothing else.'
     )
+    if existing_names:
+        skip = ", ".join(existing_names[:200])
+        prompt += f'\nSkip these: {skip}'
+    return prompt
+
+
+def _parse_text_concepts(text: str) -> list[dict]:
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text)
+    concepts = []
+    for line in text.strip().splitlines():
+        line = line.strip().lstrip('0123456789.-) ')
+        if not line:
+            continue
+        parts = [p.strip() for p in line.rsplit(',', 2)]
+        if len(parts) < 3:
+            continue
+        name = parts[0].strip('"\'')
+        if not name or len(name) > 80:
+            continue
+        try:
+            year = int(float(parts[1]))
+        except (ValueError, IndexError):
+            continue
+        try:
+            weight = float(parts[2])
+        except (ValueError, IndexError):
+            continue
+        concepts.append({"name": name, "year": year, "weight": weight})
+    return concepts
 
 
 def _make_id(name: str, existing_ids: set) -> str:
@@ -53,11 +83,26 @@ def _parse_json_response(text: str) -> dict:
         start = text.find("{")
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
-            return json.loads(text[start:end])
-        raise
+            try:
+                return json.loads(text[start:end])
+            except json.JSONDecodeError:
+                pass
+            # Truncated JSON — try to salvage by closing the array and object
+            fragment = text[start:end]
+            last_brace = fragment.rfind("}")
+            if last_brace > 0:
+                try:
+                    return json.loads(fragment[:last_brace] + "}]}")
+                except json.JSONDecodeError:
+                    pass
+                try:
+                    return json.loads(fragment[:last_brace] + "]}")
+                except json.JSONDecodeError:
+                    pass
+        return {"concepts": []}
 
 
-async def call_llm(prompt: str, backend: str = "openai", system_prompt: str = None) -> dict:
+async def call_llm(prompt: str, backend: str = "openai", system_prompt: str = None, json_mode: bool = False) -> str:
     cfg = BACKENDS[backend]
     env_key = os.environ.get(cfg["env"], "")
     if not env_key:
@@ -71,20 +116,22 @@ async def call_llm(prompt: str, backend: str = "openai", system_prompt: str = No
         if "base_url" in cfg:
             kwargs["base_url"] = cfg["base_url"]
         client = AsyncOpenAI(**kwargs)
-        resp = await client.chat.completions.create(
+        create_kwargs = dict(
             model=cfg["model"],
             messages=[
                 {"role": "system", "content": sys_msg},
                 {"role": "user", "content": prompt},
             ],
-            response_format={"type": "json_object"},
             temperature=0.7,
             max_tokens=2048,
         )
+        if json_mode:
+            create_kwargs["response_format"] = {"type": "json_object"}
+        resp = await client.chat.completions.create(**create_kwargs)
         content = resp.choices[0].message.content
         if not content:
             content = getattr(resp.choices[0].message, 'reasoning_content', '') or ''
-        return _parse_json_response(content)
+        return content
 
     elif cfg["sdk"] == "anthropic":
         from anthropic import AsyncAnthropic
@@ -92,41 +139,54 @@ async def call_llm(prompt: str, backend: str = "openai", system_prompt: str = No
         resp = await client.messages.create(
             model=cfg["model"],
             max_tokens=2048,
-            system=sys_msg + "\nRespond with ONLY valid JSON.",
+            system=sys_msg,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
         )
-        return _parse_json_response(resp.content[0].text)
+        return resp.content[0].text
 
     elif cfg["sdk"] == "gemini":
         import google.generativeai as genai
         genai.configure(api_key=env_key)
         model = genai.GenerativeModel(cfg["model"])
+        gen_config = dict(temperature=0.7, max_output_tokens=2048)
+        if json_mode:
+            gen_config["response_mime_type"] = "application/json"
         resp = await asyncio.to_thread(
             model.generate_content,
             sys_msg + "\n\n" + prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json",
-                temperature=0.7,
-                max_output_tokens=2048,
-            ),
+            generation_config=genai.GenerationConfig(**gen_config),
         )
-        return _parse_json_response(resp.text)
+        return resp.text
 
 
-async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, system_prompt: str = None) -> dict:
+async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, system_prompt: str = None, user_prompt: str = None) -> dict:
     existing_ids = set(db.get_node_ids())
     existing_names = list(db.get_node_names_by_ids(list(existing_ids)).values())
     focal_name = db.get_node_names_by_ids([focal]).get(focal, focal)
-    prompt = _build_user_prompt(focal_name, existing_names, count)
+
+    seed_node = None
+    if focal not in existing_ids:
+        seed_node = {"id": focal, "name": focal_name, "year": None, "desc": ""}
+        db.add_node(seed_node)
+        existing_ids.add(focal)
+
+    if user_prompt:
+        prompt = user_prompt.replace("{N}", str(count)).replace("{X}", focal_name)
+        if existing_names:
+            prompt += "\nSkip these: " + ", ".join(existing_names[:200])
+    else:
+        prompt = _build_user_prompt(focal_name, existing_names, count)
 
     log.info(f"Expanding '{focal}' via {backend} (asking for {count} concepts)")
-    result = await call_llm(prompt, backend, system_prompt=system_prompt)
+    raw = await call_llm(prompt, backend, system_prompt=system_prompt)
+    concepts = _parse_text_concepts(raw)
+    log.info(f"Parsed {len(concepts)} concepts from LLM response")
 
-    new_nodes = []
+    new_nodes = [seed_node] if seed_node else []
     new_edges = []
 
-    for concept in result.get("concepts", []):
+    for concept in concepts:
         name = concept.get("name")
         if not name:
             continue
@@ -135,12 +195,13 @@ async def expand_once(focal: str, db, backend: str = "openai", count: int = 20, 
         weight = max(0.0, min(1.0, float(concept.get("weight", 0.5))))
 
         node = {"id": nid, "name": name, "year": year, "desc": ""}
-        if db.add_node(node):
+        is_new = db.add_node(node)
+        if is_new:
             new_nodes.append(node)
             existing_ids.add(nid)
-            edge = {"source": focal, "target": nid, "weight": weight}
-            if db.add_edge(edge):
-                new_edges.append(edge)
+        edge = {"source": focal, "target": nid, "weight": weight}
+        if db.add_edge(edge):
+            new_edges.append(edge)
 
     log.info(f"Added {len(new_nodes)} nodes, {len(new_edges)} edges")
     return {"nodes": new_nodes, "edges": new_edges}
@@ -156,7 +217,7 @@ async def _notify(callback, event: str, data: dict):
             log.error(f"Callback error on '{event}': {e}")
 
 
-async def expansion_loop(seed, db, backend="openai", callback=None, max_rounds=0, count=20, system_prompt=None):
+async def expansion_loop(seed, db, backend="openai", callback=None, max_rounds=0, count=20, system_prompt=None, user_prompt=None):
     queue = deque([seed])
     visited = set()
     round_num = 0
@@ -171,7 +232,7 @@ async def expansion_loop(seed, db, backend="openai", callback=None, max_rounds=0
             visited.add(focal)
 
             try:
-                result = await expand_once(focal, db, backend, count, system_prompt=system_prompt)
+                result = await expand_once(focal, db, backend, count, system_prompt=system_prompt, user_prompt=user_prompt)
                 new_nodes = result["nodes"]
                 new_edges = result["edges"]
                 for n in new_nodes:
@@ -190,6 +251,7 @@ async def expansion_loop(seed, db, backend="openai", callback=None, max_rounds=0
                     await callback("stopped", {"stats": db.get_stats()})
                 return
             except Exception as e:
+                log.exception(f"Error expanding '{focal}' round {round_num}")
                 if callback:
                     await callback("error", {"round": round_num, "focal": focal, "error": str(e), "stats": db.get_stats()})
             round_num += 1
@@ -271,5 +333,6 @@ Clusters:
 Respond with ONLY this JSON:
 {{"names": ["Cluster 1 Name", "Cluster 2 Name", ...]}}"""
 
-    result = await call_llm(prompt, backend, system_prompt=system_prompt)
+    raw = await call_llm(prompt, backend, system_prompt=system_prompt, json_mode=True)
+    result = _parse_json_response(raw)
     return result.get("names", [f"Cluster {i+1}" for i in range(len(clusters))])

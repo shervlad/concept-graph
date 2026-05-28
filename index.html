@@ -197,7 +197,7 @@
   <h2>Display</h2>
   <div class="control-group">
     <label>Render Budget <span id="v-budget">1500</span></label>
-    <input type="range" id="budget" min="50" max="5000" step="50" value="1500">
+    <input type="range" id="budget" min="50" max="100000" step="50" value="1500">
   </div>
   <div class="control-group">
     <label>Label Zoom <span id="v-labelzoom">-0.5</span></label>
@@ -210,6 +210,10 @@
   <div class="control-group">
     <label>Sphere Size <span id="v-spheresize">0.15</span></label>
     <input type="range" id="spheresize" min="0.02" max="1" step="0.01" value="0.15">
+  </div>
+  <div class="control-group">
+    <label>Highlight Depth <span id="v-highlightdepth">1</span></label>
+    <input type="range" id="highlightdepth" min="1" max="5" step="1" value="1">
   </div>
 
   <div class="separator"></div>
@@ -297,6 +301,7 @@ let renderBudget = 1500;
 let labelZoomThreshold = -0.5;
 let edgeOpacity = 0.15;
 let sphereSize = 0.15;
+let highlightDepth = 1;
 let expansionRunning = false;
 let searchQuery = '';
 let searchResults = new Set();
@@ -659,9 +664,21 @@ function buildLayers() {
   const connectedIds = new Set();
   if (selId) {
     connectedIds.add(selId);
-    for (const e of edges) {
-      if (e.source === selId) connectedIds.add(nodes[e.targetIdx]?.id);
-      else if (e.target === selId) connectedIds.add(nodes[e.sourceIdx]?.id);
+    let frontier = [selId];
+    for (let step = 0; step < highlightDepth; step++) {
+      const nextFrontier = [];
+      for (const nid of frontier) {
+        for (const e of edges) {
+          if (e.source === nid && !connectedIds.has(nodes[e.targetIdx]?.id)) {
+            connectedIds.add(nodes[e.targetIdx].id);
+            nextFrontier.push(nodes[e.targetIdx].id);
+          } else if (e.target === nid && !connectedIds.has(nodes[e.sourceIdx]?.id)) {
+            connectedIds.add(nodes[e.sourceIdx].id);
+            nextFrontier.push(nodes[e.sourceIdx].id);
+          }
+        }
+      }
+      frontier = nextFrontier;
     }
   }
   const hasSelection = connectedIds.size > 0;
@@ -680,42 +697,52 @@ function buildLayers() {
       if (hasSelection) return [255, 255, 255, Math.floor(d.weight * edgeOpacity * 60)];
       return [255, 255, 255, Math.floor(d.weight * edgeOpacity * 255)];
     },
-    getWidth: d => {
-      if (hasSelection && (d.source === selId || d.target === selId)) {
-        return 1 + d.weight * 5;
-      }
-      return 0.5 + d.weight * 3;
-    },
     widthMinPixels: 1,
-    widthUnits: 'common',
+    widthMaxPixels: 1,
     pickable: false,
+    parameters: {depthWrite: false},
     updateTriggers: {
       getSourcePosition: [tickCounter],
       getTargetPosition: [tickCounter],
-      getColor: [selId, edgeOpacity],
-      getWidth: [selId]
+      getColor: [selId, edgeOpacity]
     }
   }));
 
-  if (showNodeLabels) {
+  const labelData = hasSelection
+    ? (showNodeLabels ? visibleNodes : visibleNodes.filter(d => connectedIds.has(d.id)))
+    : (showNodeLabels ? visibleNodes : []);
+
+  if (labelData.length > 0) {
     layers.push(new deck.TextLayer({
       id: 'node-labels',
-      data: visibleNodes,
+      data: labelData,
       getPosition: d => {
         const r = d.radius * sphereSize * Math.max(0.3, Math.min(1, Math.pow(2, (zoom + 1) * 0.5)));
         return [d.x, d.y, (d.z || 0) + r + d.fontSize * 0.6];
       },
       getText: d => d.wrappedName,
-      getSize: d => d.fontSize,
-      getColor: [255, 255, 255, 230],
+      getSize: d => {
+        if (hasSelection && !showNodeLabels) {
+          return d.fontSize * Math.pow(2, Math.max(0, labelZoomThreshold - zoom) * 0.8);
+        }
+        return d.fontSize;
+      },
+      getColor: d => {
+        if (hasSelection && !connectedIds.has(d.id)) return [255, 255, 255, 40];
+        return [255, 255, 255, 230];
+      },
       getTextAnchor: 'middle',
       getAlignmentBaseline: 'bottom',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
       fontWeight: 600,
       sizeUnits: 'common',
-      pickable: false,
+      pickable: true,
+      onClick: (info) => handleNodeClick(info),
+      parameters: {depthTest: false},
       updateTriggers: {
-        getPosition: [tickCounter, sphereSize, zoom]
+        getPosition: [tickCounter, sphereSize, zoom],
+        getSize: [selId, highlightDepth, zoom, labelZoomThreshold],
+        getColor: [selId, highlightDepth]
       }
     }));
   }
@@ -733,7 +760,8 @@ function buildLayers() {
       fontFamily: "'Segoe UI', system-ui, sans-serif",
       fontWeight: 700,
       sizeUnits: 'common',
-      pickable: false
+      pickable: false,
+      parameters: {depthTest: false}
     }));
   }
 
@@ -1364,6 +1392,12 @@ function setupSliders() {
     document.getElementById('v-spheresize').textContent = sphereSize;
     requestRender();
   });
+
+  document.getElementById('highlightdepth').addEventListener('input', (e) => {
+    highlightDepth = parseInt(e.target.value);
+    document.getElementById('v-highlightdepth').textContent = highlightDepth;
+    requestRender();
+  });
 }
 
 // ── Expansion Controls ─────────────────────────────────────
@@ -1523,7 +1557,7 @@ function showStatusMessage(msg, level) {
 const SETTINGS_KEY = 'knowledge-tree-settings';
 const SETTING_IDS = [
   'charge', 'linkdist', 'linkstr', 'timepull', 'cluster', 'decay', 'collision',
-  'budget', 'labelzoom', 'edgeopacity', 'spheresize',
+  'budget', 'labelzoom', 'edgeopacity', 'spheresize', 'highlightdepth',
   'rounds-input', 'count-input',
   'system-prompt', 'user-prompt',
   'auto-name-toggle'
@@ -1559,6 +1593,7 @@ function loadSettings() {
     labelZoomThreshold = parseFloat(document.getElementById('labelzoom').value);
     edgeOpacity = parseFloat(document.getElementById('edgeopacity').value);
     sphereSize = parseFloat(document.getElementById('spheresize').value);
+    highlightDepth = parseInt(document.getElementById('highlightdepth').value);
     autoNameEnabled = document.getElementById('auto-name-toggle').checked;
   } catch (_) {}
 }

@@ -186,7 +186,7 @@
   </div>
   <div class="control-group">
     <label>Velocity Decay <span id="v-decay">0.4</span></label>
-    <input type="range" id="decay" min="0.1" max="0.9" step="0.02" value="0.4">
+    <input type="range" id="decay" min="0.1" max="1" step="0.02" value="0.4">
   </div>
   <div class="control-group">
     <label>Collision <span id="v-collision">1.5</span></label>
@@ -655,9 +655,16 @@ function showPivot() {
 })();
 
 // ── Layer Building ─────────────────────────────────────────
+function nodeZoomThreshold(d, maxConns) {
+  if (maxConns <= 1) return -6;
+  const t = Math.sqrt((d.connectionCount || 0) / maxConns);
+  return -6 + (1 - t) * 12;
+}
+
 function buildLayers() {
   const zoom = currentViewState.zoom;
   const showNodeLabels = zoom > labelZoomThreshold;
+  const maxConns = visibleNodes.reduce((m, d) => Math.max(m, d.connectionCount || 0), 1);
   const showClusterLabels = zoom <= labelZoomThreshold;
 
   const selId = selectedNode?.id;
@@ -709,8 +716,8 @@ function buildLayers() {
   }));
 
   const labelData = hasSelection
-    ? (showNodeLabels ? visibleNodes : visibleNodes.filter(d => connectedIds.has(d.id)))
-    : (showNodeLabels ? visibleNodes : []);
+    ? (showNodeLabels ? visibleNodes : visibleNodes.filter(d => connectedIds.has(d.id) || zoom >= nodeZoomThreshold(d, maxConns)))
+    : visibleNodes.filter(d => zoom >= nodeZoomThreshold(d, maxConns));
 
   if (labelData.length > 0) {
     layers.push(new deck.TextLayer({
@@ -722,13 +729,18 @@ function buildLayers() {
       },
       getText: d => d.wrappedName,
       getSize: d => {
-        if (hasSelection && !showNodeLabels) {
+        if (!showNodeLabels) {
           return d.fontSize * Math.pow(2, Math.max(0, labelZoomThreshold - zoom) * 0.8);
         }
         return d.fontSize;
       },
       getColor: d => {
         if (hasSelection && !connectedIds.has(d.id)) return [255, 255, 255, 40];
+        if (!hasSelection) {
+          const nzt = nodeZoomThreshold(d, maxConns);
+          const lodAlpha = Math.min(1, Math.max(0, zoom - nzt + 1));
+          return [255, 255, 255, Math.floor(230 * lodAlpha)];
+        }
         return [255, 255, 255, 230];
       },
       getTextAnchor: 'middle',
@@ -742,7 +754,7 @@ function buildLayers() {
       updateTriggers: {
         getPosition: [tickCounter, sphereSize, zoom],
         getSize: [selId, highlightDepth, zoom, labelZoomThreshold],
-        getColor: [selId, highlightDepth]
+        getColor: [selId, highlightDepth, zoom, maxConns]
       }
     }));
   }
@@ -776,12 +788,14 @@ function buildLayers() {
       return [r, r, r];
     },
     getColor: d => {
+      const nzt = nodeZoomThreshold(d, maxConns);
+      const lodAlpha = Math.min(1, Math.max(0, (zoom - nzt + 1)));
       if (searchResults.size > 0 && !searchResults.has(d.id)) return [...d.color, 40];
       if (hasSelection && d.id === selId) return [255, 255, 100, 255];
       if (hasSelection && connectedIds.has(d.id)) return [...d.color, 255];
-      if (hasSelection) return [...d.color, 50];
+      if (hasSelection) return [...d.color, Math.floor(50 * lodAlpha)];
       if (d.pinned) return [255, 255, 100, 255];
-      return [...d.color, 220];
+      return [...d.color, Math.floor(220 * lodAlpha)];
     },
     sizeScale: 1,
     pickable: true,
@@ -791,7 +805,7 @@ function buildLayers() {
     onHover: (info) => handleNodeHover(info),
     updateTriggers: {
       getPosition: [tickCounter],
-      getColor: [pinVersion, searchResults.size, tickCounter, selId],
+      getColor: [pinVersion, searchResults.size, tickCounter, selId, zoom, maxConns],
       getScale: [tickCounter, zoom, sphereSize]
     }
   }));
@@ -901,6 +915,8 @@ async function initGraph() {
     for (const n of nodes) {
       oldPositions[n.id] = {x: n.x, y: n.y, z: n.z || 0};
     }
+    const savedPositions = Object.keys(oldPositions).length === 0 ? loadPositions() : null;
+    if (savedPositions) Object.assign(oldPositions, savedPositions);
 
     const resp = await fetch('/api/graph');
     const data = await resp.json();
@@ -940,16 +956,18 @@ async function initGraph() {
       targetIdx: nodeIndex[l.target]
     })).filter(e => e.sourceIdx !== undefined && e.targetIdx !== undefined);
 
+    const hasRestoredPositions = savedPositions !== null && Object.keys(savedPositions).length > 0;
     worker.postMessage({
       type: "init",
       nodes: nodes.map(n => ({
-        id: n.id, x: n.x, y: n.y, radius: n.radius,
+        id: n.id, x: n.x, y: n.y, z: n.z || 0, radius: n.radius,
         year: n.year, domain: "unknown"
       })),
       edges: edges.map(e => ({source: e.source, target: e.target, weight: e.weight})),
       params: getCurrentParams(),
       width: window.innerWidth,
-      height: window.innerHeight
+      height: window.innerHeight,
+      alpha: hasRestoredPositions ? 0.05 : 1
     });
 
     for (const n of nodes) {
@@ -1438,6 +1456,7 @@ async function resetGraph() {
   await fetch('/api/reset', {method: 'POST'});
   nodes = []; edges = []; nodeIndex = {};
   visibleNodes = []; visibleEdges = []; clusterLabels = [];
+  localStorage.removeItem(POSITIONS_KEY);
   worker.postMessage({type: "init", nodes: [], edges: [], params: getCurrentParams(), width: window.innerWidth, height: window.innerHeight});
   setExpansionRunning(false);
   updateStatusBar();
@@ -1602,6 +1621,27 @@ function clearSettings() {
   localStorage.removeItem(SETTINGS_KEY);
   showStatusMessage('Saved settings cleared.');
 }
+
+// ── Position Persistence ──────────────────────────────────
+const POSITIONS_KEY = 'knowledge-tree-positions';
+
+function savePositions() {
+  const positions = {};
+  for (const n of nodes) {
+    positions[n.id] = {x: n.x, y: n.y, z: n.z || 0};
+  }
+  localStorage.setItem(POSITIONS_KEY, JSON.stringify(positions));
+}
+
+function loadPositions() {
+  const raw = localStorage.getItem(POSITIONS_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (_) { return null; }
+}
+
+window.addEventListener('beforeunload', () => {
+  if (nodes.length > 0) savePositions();
+});
 
 // ── Window Resize ──────────────────────────────────────────
 window.addEventListener('resize', () => {

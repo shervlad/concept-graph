@@ -97,6 +97,9 @@ function handleInit(msg) {
   rebuildNodeIndex();
   rebuildDomainSet();
   setupSimulation();
+  if (msg.alpha !== undefined && msg.alpha !== 1) {
+    simulation.alpha(msg.alpha);
+  }
 }
 
 function handleAdd(msg) {
